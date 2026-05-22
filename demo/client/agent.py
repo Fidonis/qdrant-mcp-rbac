@@ -103,7 +103,7 @@ class McpLlmAgent:
         self._tool_names: set[str] = set()
         self._messages: list[dict[str, Any]] = []
 
-    async def __aenter__(self) -> "McpLlmAgent":
+    async def __aenter__(self) -> McpLlmAgent:
         self._client = Client(self._transport)
         await self._client.__aenter__()
         await self._refresh_tools()
@@ -134,7 +134,7 @@ class McpLlmAgent:
 
         self._messages.append({"role": "user", "content": user_message})
 
-        for iteration in range(self._llm.max_iterations):
+        for _iteration in range(self._llm.max_iterations):
             kwargs: dict[str, Any] = {
                 "model": self._llm.model,
                 "messages": self._messages,
