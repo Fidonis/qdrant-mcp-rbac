@@ -158,6 +158,22 @@ cd src
 uv run python main.py
 ```
 
+### Run with Docker
+
+To run the server itself in a container instead of on the host, use the
+compose file in `docker/`:
+
+```bash
+cp docker/.env.example docker/.env   # then edit secrets and OIDC_ISSUER_URL
+docker compose -f docker/docker-compose.yml up -d
+```
+
+This builds the image from `docker/Dockerfile` and starts the `mcp-server`
+container (published on `:8000`, with a `/health` health-check) alongside
+Qdrant. Keycloak is **not** included — point `OIDC_ISSUER_URL` in `docker/.env`
+at an external OIDC provider. Every variable is documented in
+`docker/.env.example`.
+
 ## Bootstrapping access
 
 1. Assign one user the `qdrant-admin` realm role in Keycloak.
