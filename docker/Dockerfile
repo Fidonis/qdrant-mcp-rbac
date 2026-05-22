@@ -45,9 +45,10 @@ USER app
 # streamable-http transport default port (see MCP_PORT in docker/.env.example).
 EXPOSE 8000
 
-# /health is auth-exempt; urllib is used because the slim image ships no curl.
+# /health is auth-exempt. sh -c lets the healthcheck read MCP_PORT at runtime
+# so the check stays correct when the port is changed via docker/.env.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD ["python", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=3).status == 200 else 1)"]
+    CMD ["sh", "-c", "python -c 'import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen(\"http://localhost:\"+os.environ.get(\"MCP_PORT\",\"8000\")+\"/health\",timeout=3).status==200 else 1)'"]
 
 # main.py uses relative imports, so the process must run from /app.
 CMD ["python", "main.py"]
