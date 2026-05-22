@@ -6,7 +6,6 @@ shipped product.
 
 ```
 demo/
-├── docker/      # Qdrant (+ optional Keycloak) via docker-compose
 ├── data/        # Markdown seed files, one per role (finance / it / sales)
 ├── bootstrap/   # uv project: vectorize data/ into per-role Qdrant collections
 └── client/      # uv project: OIDC-authenticated MCP client with an LLM agent
@@ -21,7 +20,7 @@ demo/
    from `src/.env`, so configure `src/.env` first (see top-level `README.md`).
 
    ```bash
-   docker compose --env-file src/.env -f demo/docker/docker-compose.yml up -d
+   docker compose --env-file src/.env -f docker/docker-compose.yml up -d qdrant
    ```
 
 2. **Seed data** — vectorize the Markdown files in `demo/data/`.

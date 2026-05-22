@@ -9,7 +9,8 @@ services:
     image: qdrant-rbac-mcp:latest
     container_name: qdrant-rbac-mcp
     env_file:
-      - .env
+      - path: .env
+        required: false
     depends_on:
       - qdrant
     ports:
