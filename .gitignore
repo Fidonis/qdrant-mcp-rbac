@@ -20,6 +20,8 @@ env/
 # uv
 .python-version
 uv.lock
+# The production server's lock file is tracked for reproducible Docker builds.
+!src/uv.lock
 
 # Editor / OS
 .vscode/

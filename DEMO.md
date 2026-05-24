@@ -115,7 +115,7 @@ RBAC_SERVICE_TOKEN_TTL=60
 ### 2b. Docker Compose starten
 
 ```bash
-docker compose --env-file src/.env -f demo/docker/docker-compose.yml up -d
+docker compose --env-file src/.env -f docker/docker-compose.yml up -d qdrant
 ```
 
 Verify: `http://localhost:6333/dashboard` zeigt das Qdrant-Dashboard.

@@ -291,7 +291,12 @@ def register_tools(
         ``{"removed": false}``.
         """
         token = _require_admin()
-        if not isinstance(role, str) or not role.strip() or not isinstance(collection, str) or not collection.strip():
+        if (
+            not isinstance(role, str)
+            or not role.strip()
+            or not isinstance(collection, str)
+            or not collection.strip()
+        ):
             raise ToolError("role and collection must be non-empty strings")
         point_id = acl_point_id(role, collection)
         async with qdrant_client(qdrant_url, token.token) as client:

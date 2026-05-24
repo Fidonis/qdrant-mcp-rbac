@@ -100,8 +100,6 @@ demo/                      # everything for the end-to-end demo
     finance.md
     it.md
     sales.md
-  docker/                  # demo infrastructure
-    docker-compose.yml     # Qdrant (+ optional Keycloak)
 ```
 
 ## Setup
@@ -158,6 +156,22 @@ cd src
 uv run python main.py
 ```
 
+### Run with Docker
+
+To run the server itself in a container instead of on the host, use the
+compose file in `docker/`:
+
+```bash
+cp docker/.env.example docker/.env   # then edit secrets and OIDC_ISSUER_URL
+docker compose -f docker/docker-compose.yml up -d
+```
+
+This builds the image from `docker/Dockerfile` and starts the `mcp-server`
+container (published on `:8000`, with a `/health` health-check) alongside
+Qdrant. Keycloak is **not** included — point `OIDC_ISSUER_URL` in `docker/.env`
+at an external OIDC provider. Every variable is documented in
+`docker/.env.example`.
+
 ## Bootstrapping access
 
 1. Assign one user the `qdrant-admin` realm role in Keycloak.
@@ -210,18 +224,17 @@ collection (e.g. via the Qdrant API directly) become visible after at most
 
 ## Local development with docker-compose
 
-The compose file lives in `demo/docker/`, but it reads variable values
-(e.g. `QDRANT_JWT_SECRET`) from `src/.env`. Run it from the repo root
-and point Compose at both files explicitly:
+To start only Qdrant for local server development, use the `qdrant` service
+from `docker/docker-compose.yml`. Pass `src/.env` so that Compose can read
+`QDRANT_JWT_SECRET`:
 
 ```bash
-docker compose --env-file src/.env -f demo/docker/docker-compose.yml up -d
+docker compose --env-file src/.env -f docker/docker-compose.yml up -d qdrant
 ```
 
 This starts:
 
 - Qdrant on `:6333` (with JWT RBAC enabled, signing key from `QDRANT_JWT_SECRET`)
-- Keycloak on `:8080` (admin/admin in dev mode)
 
 Create a realm, a confidential client with audience `mcp-server`, the
 `qdrant-admin` role, and any per-team roles you plan to grant access to.
