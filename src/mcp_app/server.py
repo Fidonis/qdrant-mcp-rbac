@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def _build_components(
     settings: Settings,
-) -> tuple[OIDCValidator, AclResolver, QdrantJWTBuilder, "partial[str]"]:
+) -> tuple[OIDCValidator, AclResolver, QdrantJWTBuilder, partial[str]]:
     """Construct validator, resolver, JWT builder, and service token factory."""
     validator = OIDCValidator(
         issuer_url=settings.oidc_issuer_url,
@@ -52,7 +52,7 @@ def _build_components(
 def create_mcp(
     settings: Settings,
     resolver: AclResolver,
-    service_token_factory: "partial[str]",
+    service_token_factory: partial[str],
 ) -> FastMCP:
     mcp: FastMCP = FastMCP(
         name="qdrant-rbac",

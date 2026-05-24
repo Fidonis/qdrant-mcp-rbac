@@ -1,0 +1,46 @@
+# Containerized deployment of the qdrant-rbac MCP server.
+# Copy .env.example to .env first, then run from the repo root:
+#   docker compose -f docker/docker-compose.yml up -d
+services:
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: qdrant-rbac-mcp:v0.1.0
+    container_name: qdrant-rbac-mcp
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      - qdrant
+    ports:
+      # Both sides read MCP_PORT from .env so a single variable change is enough.
+      - "${MCP_PORT:-8000}:${MCP_PORT:-8000}"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:'+os.environ.get('MCP_PORT','8000')+'/health',timeout=3).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  qdrant:
+    image: qdrant/qdrant:v1.18.1
+    container_name: qdrant-rbac-qdrant
+    environment:
+      # The api-key doubles as the JWT signing secret; it must equal QDRANT_JWT_SECRET.
+      QDRANT__SERVICE__API_KEY: ${QDRANT_JWT_SECRET:-change-me-to-a-strong-secret}
+      QDRANT__SERVICE__JWT_RBAC: "true"
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
