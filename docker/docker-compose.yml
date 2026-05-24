@@ -6,7 +6,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: qdrant-rbac-mcp:latest
+    image: qdrant-rbac-mcp:v0.1.0
     container_name: qdrant-rbac-mcp
     env_file:
       - path: .env
@@ -29,7 +29,7 @@ services:
       start_period: 10s
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.18.1
     container_name: qdrant-rbac-qdrant
     environment:
       # The api-key doubles as the JWT signing secret; it must equal QDRANT_JWT_SECRET.
