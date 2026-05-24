@@ -60,4 +60,7 @@ jobs:
           provenance: mode=max
 
       - name: Sign image digest
-        run: cosign sign --yes ghcr.io/${{ github.repository }}@${{ steps.push.outputs.digest }}
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: cosign sign --yes "${IMAGE,,}@${DIGEST}"
