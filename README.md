@@ -51,6 +51,141 @@ Each grant is one point in `_rbac_acl`. The point id is a deterministic
 The collection is auto-created on first read by the server using a self-minted
 service token.
 
+### Document-level access control (`doc_policy`)
+
+Collection-level access decides whether a role can read a collection at all.
+A grant may additionally carry an optional `doc_policy` that restricts which
+**individual documents (points)** inside that collection the role can see. The
+server translates the policy into a Qdrant payload filter and injects it as a
+`must` clause on every read — `search_collection` and
+`search_collection_by_text`. Caller-supplied `query_filter` values are
+preserved; the doc filter is added alongside, so both apply together.
+
+Grants without `doc_policy` behave exactly as before — every document in the
+collection is visible.
+
+#### Schema
+
+```jsonc
+{
+  "default": "allow" | "deny",
+  "conditions": [
+    { "field": "<payload field>", "mode": "allow" | "deny", "values": ["<v>", "…"] }
+  ]
+}
+```
+
+- `default: "allow"` — every document is visible by default; `deny`
+  conditions hide matching ones.
+- `default: "deny"` — no documents are visible by default; `allow`
+  conditions expose matching ones.
+- `values: ["*"]` — wildcard meaning "all documents". On an `allow`
+  condition (default-deny) it cancels the filter, exposing the whole
+  collection; on a `deny` condition (default-allow) it returns an empty
+  result set.
+- `default: "deny"` with no `allow` conditions → empty result set.
+
+Multiple conditions of the same mode are unioned (a document is hidden by
+**any** deny condition; a document is exposed by **any** allow condition).
+
+#### Multi-role merge
+
+When a user holds several grants on the same collection (via different
+roles), the server merges their policies using the most-permissive rule:
+
+- If any matching grant has no `doc_policy`, the user is unrestricted on
+  that collection.
+- If any matching grant has `default: "allow"`, the merged policy is
+  `default: "allow"` with the union of those grants' deny conditions
+  (default-deny grants are ignored).
+- Otherwise all grants are `default: "deny"` and their allow conditions
+  are unioned.
+
+#### Recommended payload field: `acl_tags`
+
+A new optional `acl_tags: list[str]` field is reserved for documents that
+need access control. It is never required — documents without `acl_tags`
+remain fully functional:
+
+- In default-allow grants, an untagged document is never matched by a
+  `deny` condition on `acl_tags` → always visible.
+- In default-deny grants, an untagged document never satisfies an
+  `allow` condition on `acl_tags` → implicitly hidden.
+
+The bootstrap script `demo/bootstrap/vectorize.py` reads an optional
+`demo/data/acl_tags.yml` sidecar mapping each Markdown source (POSIX path
+relative to the data directory) to a list of tags applied to every chunk
+ingested from that file.
+
+#### Examples
+
+Default-allow, deny confidential documents:
+
+```jsonc
+{
+  "role": "finance-analyst",
+  "collection": "finance",
+  "access": "r",
+  "doc_policy": {
+    "default": "allow",
+    "conditions": [
+      { "field": "acl_tags", "mode": "deny", "values": ["confidential", "board-only"] }
+    ]
+  }
+}
+```
+
+Default-deny, allow only public documents:
+
+```jsonc
+{
+  "role": "guest",
+  "collection": "finance",
+  "access": "r",
+  "doc_policy": {
+    "default": "deny",
+    "conditions": [
+      { "field": "acl_tags", "mode": "allow", "values": ["public"] }
+    ]
+  }
+}
+```
+
+Filtering on the `source` field (no `acl_tags` required):
+
+```jsonc
+{
+  "role": "junior-analyst",
+  "collection": "finance",
+  "access": "r",
+  "doc_policy": {
+    "default": "deny",
+    "conditions": [
+      { "field": "source", "mode": "allow", "values": ["annual-report.md", "q4-summary.md"] }
+    ]
+  }
+}
+```
+
+`grant_access` accepts the same shape:
+
+```jsonc
+{
+  "tool": "grant_access",
+  "args": {
+    "role": "guest",
+    "collection": "finance",
+    "access": "r",
+    "doc_policy": {
+      "default": "deny",
+      "conditions": [
+        { "field": "acl_tags", "mode": "allow", "values": ["public"] }
+      ]
+    }
+  }
+}
+```
+
 ## Layout
 
 The repo separates the production server (`src/`) from demo material (`demo/`).

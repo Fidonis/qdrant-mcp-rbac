@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
+import yaml
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
@@ -53,6 +54,7 @@ DEFAULT_META_COLLECTION = "_collection_meta"
 DEFAULT_CHUNK_TOKENS = 500
 DEFAULT_CHUNK_OVERLAP = 50
 DEFAULT_BATCH = 32
+ACL_TAGS_FILENAME = "acl_tags.yml"
 
 # Must match src/qdrant/meta.py — bootstrap and the MCP server agree on the
 # point id derived from a collection name so meta upserts are idempotent.
@@ -108,6 +110,37 @@ def discover_markdown_files(root: Path) -> list[Path]:
         raise FileNotFoundError(f"Data directory not found: {root}")
     files = sorted(p for p in root.rglob("*.md") if p.is_file())
     return files
+
+
+def load_acl_tags(data_root: Path) -> dict[str, list[str]]:
+    """Load the optional ``acl_tags.yml`` sidecar.
+
+    The sidecar maps each Markdown source path (relative to ``data_root``,
+    POSIX-style) to a list of tag strings. Documents listed here get an
+    ``acl_tags`` payload field at ingest time; documents not listed remain
+    untagged and stay fully visible under default-allow doc policies.
+
+    The file is optional — when missing, an empty mapping is returned.
+    """
+    sidecar = data_root / ACL_TAGS_FILENAME
+    if not sidecar.is_file():
+        return {}
+    try:
+        raw = yaml.safe_load(sidecar.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise SystemExit(f"Invalid YAML in {sidecar}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise SystemExit(f"{sidecar} must contain a mapping at top level")
+    result: dict[str, list[str]] = {}
+    for source, tags in raw.items():
+        if not isinstance(source, str) or not source:
+            raise SystemExit(f"{sidecar}: keys must be non-empty strings, got {source!r}")
+        if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+            raise SystemExit(
+                f"{sidecar}: value for {source!r} must be a list of strings"
+            )
+        result[source] = list(tags)
+    return result
 
 
 def embed_batch(
@@ -201,6 +234,7 @@ def ingest_file(
     data_root: Path,
     chunk_tokens: int,
     overlap: int,
+    acl_tags: list[str] | None = None,
 ) -> IngestResult:
     role = md_path.stem
     collection = role
@@ -230,15 +264,22 @@ def ingest_file(
     ensure_collection(client, name=collection, vector_size=vector_size)
 
     namespace = uuid.uuid5(uuid.NAMESPACE_URL, f"qdrant-rbac/{role}")
+
+    def _payload(idx: int, chunk: str) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "source": relative_source,
+            "chunk_index": idx,
+            "text": chunk,
+        }
+        if acl_tags:
+            payload["acl_tags"] = list(acl_tags)
+        return payload
+
     points = [
         PointStruct(
             id=str(uuid.uuid5(namespace, f"{relative_source}#{idx}")),
             vector=vector,
-            payload={
-                "source": relative_source,
-                "chunk_index": idx,
-                "text": chunk,
-            },
+            payload=_payload(idx, chunk),
         )
         for idx, (chunk, vector) in enumerate(zip(chunks, embeddings, strict=True))
     ]
@@ -303,9 +344,18 @@ def main() -> int:
     client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
     ensure_meta_collection(client, name=meta_collection)
 
+    acl_tags_map = load_acl_tags(data_dir)
+    if acl_tags_map:
+        logger.info(
+            "Loaded acl_tags for %d source file(s) from %s",
+            len(acl_tags_map),
+            data_dir / ACL_TAGS_FILENAME,
+        )
+
     results: list[IngestResult] = []
     with httpx.Client(timeout=httpx.Timeout(60.0, connect=5.0)) as http:
         for md_path in md_files:
+            relative_source = md_path.relative_to(data_dir).as_posix()
             result = ingest_file(
                 client=client,
                 http=http,
@@ -315,6 +365,7 @@ def main() -> int:
                 data_root=data_dir,
                 chunk_tokens=chunk_tokens,
                 overlap=overlap,
+                acl_tags=acl_tags_map.get(relative_source),
             )
             results.append(result)
             logger.info(

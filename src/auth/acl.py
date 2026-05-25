@@ -160,7 +160,11 @@ class AclResolver:
         mapping: dict[str, list[CollectionAccess]] = {}
         for entry in entries:
             mapping.setdefault(entry.role, []).append(
-                CollectionAccess(collection=entry.collection, access=entry.access)
+                CollectionAccess(
+                    collection=entry.collection,
+                    access=entry.access,
+                    doc_policy=entry.doc_policy,
+                )
             )
         logger.debug(
             "Loaded %d ACL entries spanning %d roles", len(entries), len(mapping)

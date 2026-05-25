@@ -6,6 +6,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 QdrantAccessLevel = Literal["r", "rw", "m"]
+DocPolicyDefault = Literal["allow", "deny"]
+DocConditionMode = Literal["allow", "deny"]
 
 
 class OIDCClaims(BaseModel):
@@ -22,11 +24,41 @@ class OIDCClaims(BaseModel):
         return [*self.realm_roles, *self.client_roles]
 
 
+class DocCondition(BaseModel):
+    """One clause inside a :class:`DocPolicy`.
+
+    A condition targets a single payload ``field`` and lists the ``values``
+    that should be matched. The ``mode`` selects whether matching documents
+    are exposed (``allow``) or hidden (``deny``).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: str = Field(min_length=1)
+    mode: DocConditionMode
+    values: list[str] = Field(min_length=1)
+
+
+class DocPolicy(BaseModel):
+    """Document-level access policy attached to a role grant.
+
+    The policy is evaluated server-side: a Qdrant payload filter is built
+    from it and injected as a ``must`` clause into every read on the
+    associated collection.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    default: DocPolicyDefault
+    conditions: list[DocCondition] = Field(default_factory=list)
+
+
 class CollectionAccess(BaseModel):
     """Effective access on a single Qdrant collection."""
 
     collection: str
     access: QdrantAccessLevel
+    doc_policy: DocPolicy | None = None
 
 
 class AclEntry(BaseModel):
@@ -35,6 +67,9 @@ class AclEntry(BaseModel):
     For ``access == 'm'`` the ``collection`` field is informational only — the
     JWT builder collapses such a grant to a global manage token. Convention:
     use ``collection = '*'`` for global grants.
+
+    ``doc_policy`` is optional. When present, reads on this collection are
+    filtered to the documents the policy admits.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -42,6 +77,7 @@ class AclEntry(BaseModel):
     role: str = Field(min_length=1)
     collection: str = Field(min_length=1)
     access: QdrantAccessLevel
+    doc_policy: DocPolicy | None = None
 
 
 class QdrantToken(BaseModel):
