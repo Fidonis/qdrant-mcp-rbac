@@ -105,6 +105,21 @@ def chunk_text(text: str, *, chunk_tokens: int, overlap: int) -> list[str]:
     return chunks
 
 
+def collection_name_for(stem: str) -> str:
+    """Derive the Qdrant collection name from a file stem.
+
+    Takes the prefix up to (but not including) the first hyphen so that
+    documents sharing a prefix land in the same collection:
+
+        finance-2025 → finance
+        finance-2026 → finance
+        it           → it
+        sales        → sales
+        sales-vp     → sales
+    """
+    return stem.split("-")[0]
+
+
 def discover_markdown_files(root: Path) -> list[Path]:
     if not root.exists():
         raise FileNotFoundError(f"Data directory not found: {root}")
@@ -232,12 +247,20 @@ def ingest_file(
     meta_collection: str,
     md_path: Path,
     data_root: Path,
+    collection: str,
     chunk_tokens: int,
     overlap: int,
+    recreate_collection: bool = True,
     acl_tags: list[str] | None = None,
 ) -> IngestResult:
-    role = md_path.stem
-    collection = role
+    """Ingest one Markdown file into ``collection``.
+
+    When ``recreate_collection`` is ``True`` (default), the collection is
+    wiped and recreated before upserting — this is the right behaviour for
+    the first file in a collection group. Subsequent files in the same
+    collection must pass ``recreate_collection=False`` so their chunks are
+    appended rather than replacing the previous ones.
+    """
     relative_source = md_path.relative_to(data_root).as_posix()
 
     text = md_path.read_text(encoding="utf-8")
@@ -246,10 +269,11 @@ def ingest_file(
     if not chunks:
         logger.warning("No content to vectorize in %s — collection left empty", md_path)
         # Still probe the endpoint once to determine the vector dimension so
-        # the empty collection has the right schema.
+        # the collection (if new) gets the right schema.
         probe = embed_batch(http, cfg=embed_cfg, texts=["probe"])
         vector_size = len(probe[0])
-        ensure_collection(client, name=collection, vector_size=vector_size)
+        if recreate_collection:
+            ensure_collection(client, name=collection, vector_size=vector_size)
         upsert_meta_entry(
             client,
             meta_collection=meta_collection,
@@ -257,13 +281,16 @@ def ingest_file(
             embedding_model=embed_cfg.model,
             vector_dimension=vector_size,
         )
-        return IngestResult(role=role, collection=collection, source=md_path, chunk_count=0)
+        return IngestResult(role=collection, collection=collection, source=md_path, chunk_count=0)
 
     embeddings = embed_chunks(http, cfg=embed_cfg, chunks=chunks)
     vector_size = len(embeddings[0])
-    ensure_collection(client, name=collection, vector_size=vector_size)
+    if recreate_collection:
+        ensure_collection(client, name=collection, vector_size=vector_size)
 
-    namespace = uuid.uuid5(uuid.NAMESPACE_URL, f"qdrant-rbac/{role}")
+    # Point IDs are scoped to the source file path so chunks from
+    # different files within the same collection never collide.
+    namespace = uuid.uuid5(uuid.NAMESPACE_URL, f"qdrant-rbac/{relative_source}")
 
     def _payload(idx: int, chunk: str) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -294,7 +321,7 @@ def ingest_file(
     )
 
     return IngestResult(
-        role=role, collection=collection, source=md_path, chunk_count=len(points)
+        role=collection, collection=collection, source=md_path, chunk_count=len(points)
     )
 
 
@@ -352,10 +379,17 @@ def main() -> int:
             data_dir / ACL_TAGS_FILENAME,
         )
 
+    # Track which collections have been (re)created so subsequent files in the
+    # same group are appended rather than overwriting the previous chunks.
+    seen_collections: set[str] = set()
+
     results: list[IngestResult] = []
     with httpx.Client(timeout=httpx.Timeout(60.0, connect=5.0)) as http:
         for md_path in md_files:
             relative_source = md_path.relative_to(data_dir).as_posix()
+            coll = collection_name_for(md_path.stem)
+            recreate = coll not in seen_collections
+            seen_collections.add(coll)
             result = ingest_file(
                 client=client,
                 http=http,
@@ -363,25 +397,28 @@ def main() -> int:
                 meta_collection=meta_collection,
                 md_path=md_path,
                 data_root=data_dir,
+                collection=coll,
                 chunk_tokens=chunk_tokens,
                 overlap=overlap,
+                recreate_collection=recreate,
                 acl_tags=acl_tags_map.get(relative_source),
             )
             results.append(result)
             logger.info(
-                "Ingested role=%s chunks=%d collection=%s (from %s)",
-                result.role,
-                result.chunk_count,
+                "Ingested collection=%s chunks=%d source=%s%s",
                 result.collection,
+                result.chunk_count,
                 result.source.relative_to(data_dir).as_posix(),
+                " (collection created)" if recreate else " (appended)",
             )
 
     print("\nSummary")
     print("-------")
-    print(f"{'Role':<24} {'Chunks':>8}  Collection")
+    print(f"{'Source file':<32} {'Chunks':>8}  Collection")
     for r in results:
-        print(f"{r.role:<24} {r.chunk_count:>8}  {r.collection}")
-    print(f"\nTotal collections created/refreshed: {len(results)}")
+        print(f"{r.source.name:<32} {r.chunk_count:>8}  {r.collection}")
+    print(f"\nTotal collections created/refreshed: {len(seen_collections)}")
+    print(f"Total source files ingested:          {len(results)}")
     print(f"Meta collection: {meta_collection}")
     return 0
 
