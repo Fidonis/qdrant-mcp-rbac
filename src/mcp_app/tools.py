@@ -18,6 +18,7 @@ from auth.doc_filter import DENY_ALL, build_doc_filter, combine_with_user_filter
 from auth.models import (
     AclEntry,
     CollectionAccess,
+    DocPolicy,
     OIDCClaims,
     QdrantAccessLevel,
     QdrantToken,
@@ -253,7 +254,7 @@ def register_tools(
         role: str,
         collection: str,
         access: QdrantAccessLevel,
-        doc_policy: dict[str, Any] | None = None,
+        doc_policy: DocPolicy | None = None,
     ) -> dict[str, Any]:
         """Grant ``role`` the given ``access`` on ``collection``. Admin only.
 
@@ -261,9 +262,40 @@ def register_tools(
         point id, so subsequent calls update the existing grant in place.
         For global manage grants pass ``collection='*'`` and ``access='m'``.
 
-        Optional ``doc_policy`` restricts which documents the role can read
-        in ``collection`` by injecting a payload filter into every search.
-        See README for the schema.
+        Optional ``doc_policy`` restricts which documents the role can see in
+        ``collection``. The server translates it into a Qdrant payload filter
+        injected into every search.
+
+        ``doc_policy`` shape::
+
+            {
+              "default": "allow" | "deny",
+              "conditions": [
+                { "field": "<payload field>", "mode": "allow" | "deny", "values": ["<v1>", ...] }
+              ]
+            }
+
+        Common patterns:
+
+        * Allow only documents whose ``source`` field matches a filename::
+
+            {"default": "deny", "conditions": [
+              {"field": "source", "mode": "allow", "values": ["finance-2025.md"]}
+            ]}
+
+        * Hide documents tagged ``confidential`` from a role::
+
+            {"default": "allow", "conditions": [
+              {"field": "acl_tags", "mode": "deny", "values": ["confidential"]}
+            ]}
+
+        * Allow only documents tagged ``public``::
+
+            {"default": "deny", "conditions": [
+              {"field": "acl_tags", "mode": "allow", "values": ["public"]}
+            ]}
+
+        Omit ``doc_policy`` (or pass ``null``) to grant access to all documents.
         """
         token = _require_admin()
         try:
