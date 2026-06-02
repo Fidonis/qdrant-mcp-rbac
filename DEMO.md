@@ -1,6 +1,6 @@
 # Testing Guide — Qdrant RBAC mit OIDC
 
-End-to-end Anleitung zum Testen des `qdrant-rbac` MCP-Servers mit der `demo/client` CLI.
+End-to-end Anleitung zum Testen des `qdrant-mcp-rbac` MCP-Servers mit der `demo/client` CLI.
 
 ```
 ┌──────────────┐  OIDC password   ┌───────────────────┐
@@ -11,7 +11,7 @@ End-to-end Anleitung zum Testen des `qdrant-rbac` MCP-Servers mit der `demo/clie
        │  Bearer <access_token>
        ▼
 ┌──────────────┐    Qdrant JWT    ┌──────────┐
-│ qdrant-rbac  │ ───────────────▶ │  Qdrant  │
+│ qdrant-mcp-rbac  │ ───────────────▶ │  Qdrant  │
 │ (MCP Server) │                  │ (Docker) │
 └──────────────┘                  └──────────┘
        ▲
@@ -293,7 +293,7 @@ Die Datei `.vscode/launch.json` ist bereits im Repository enthalten.
 
 1. In VS Code das Repo-Verzeichnis öffnen
 2. `src/main.py` öffnen (optional)
-3. **F5** drücken → Konfiguration **"qdrant-rbac MCP Server"** auswählen
+3. **F5** drücken → Konfiguration **"qdrant-mcp-rbac MCP Server"** auswählen
 
 Der Server startet mit `LOG_LEVEL=DEBUG` und debugpy attached.
 

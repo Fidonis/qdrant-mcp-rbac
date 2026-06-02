@@ -1,5 +1,5 @@
 [project]
-name = "qdrant-rbac"
+name = "qdrant-mcp-rbac"
 version = "0.1.0"
 description = "FastMCP server exposing Qdrant with OIDC-based role-based access control"
 readme = "../README.md"

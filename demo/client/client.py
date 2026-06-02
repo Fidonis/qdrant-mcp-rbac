@@ -3,7 +3,7 @@
 Flow:
   1. Read settings from .env
   2. Get an OIDC access token from Keycloak
-  3. Connect to the qdrant-rbac MCP server with that token
+  3. Connect to the qdrant-mcp-rbac MCP server with that token
   4. Spin up an LLM agent (configurable via LLM_MODEL) and start a chat loop
 
 Run from inside ``demo/client/``:
@@ -112,7 +112,7 @@ async def _run_chat(settings: Settings, bundle: TokenBundle) -> None:
             f"[bold]MCP[/]: {settings.mcp_server_url}\n"
             f"[bold]LLM[/]: {settings.llm_model}"
             + (f"  [dim](api_base={settings.llm_api_base})[/]" if settings.llm_api_base else ""),
-            title="qdrant-rbac demo client",
+            title="qdrant-mcp-rbac demo client",
             border_style="cyan",
         )
     )

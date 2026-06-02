@@ -1,4 +1,4 @@
-# qdrant-rbac
+# qdrant-mcp-rbac
 
 A FastMCP server that exposes a Qdrant vector database over **streamable HTTP** with
 **OIDC-based authentication** (Keycloak-compatible) and **role-based access control**
@@ -9,7 +9,7 @@ configuration files — admins manage them at runtime via MCP tools.
 
 ```
 ┌──────────┐   OIDC Bearer   ┌────────────────┐   Qdrant JWT    ┌──────────┐
-│ MCP host │ ──────────────▶ │ qdrant-rbac    │ ──────────────▶ │  Qdrant  │
+│ MCP host │ ──────────────▶ │ qdrant-mcp-rbac    │ ──────────────▶ │  Qdrant  │
 │ (client) │                 │  (FastMCP)     │                 │          │
 └──────────┘                 └────────────────┘                 │  ┌─────┐ │
                                      │                          │  │_rbac│ │
@@ -377,7 +377,7 @@ Assign roles to test users.
 
 ## Qdrant JWT setup
 
-`qdrant-rbac` signs JWTs with `QDRANT_JWT_SECRET` (HS256). Qdrant must be
+`qdrant-mcp-rbac` signs JWTs with `QDRANT_JWT_SECRET` (HS256). Qdrant must be
 configured to accept JWTs and use the same secret as its API key:
 
 ```yaml

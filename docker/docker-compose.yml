@@ -1,4 +1,4 @@
-# Containerized deployment of the qdrant-rbac MCP server.
+# Containerized deployment of the qdrant-mcp-rbac MCP server.
 # Copy .env.example to .env first, then run from the repo root:
 #   docker compose -f docker/docker-compose.yml up -d
 services:
@@ -6,8 +6,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: qdrant-rbac-mcp:v0.2.0
-    container_name: qdrant-rbac-mcp
+    image: qdrant-mcp-rbac-mcp:v0.2.0
+    container_name: qdrant-mcp-rbac-mcp
     env_file:
       - path: .env
         required: false
@@ -30,7 +30,7 @@ services:
 
   qdrant:
     image: qdrant/qdrant:v1.18.1
-    container_name: qdrant-rbac-qdrant
+    container_name: qdrant-mcp-rbac-qdrant
     environment:
       # The api-key doubles as the JWT signing secret; it must equal QDRANT_JWT_SECRET.
       QDRANT__SERVICE__API_KEY: ${QDRANT_JWT_SECRET:-change-me-to-a-strong-secret}

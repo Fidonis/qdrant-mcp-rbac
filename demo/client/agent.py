@@ -1,7 +1,7 @@
-"""LLM agent loop bridging litellm <-> the qdrant-rbac MCP server.
+"""LLM agent loop bridging litellm <-> the qdrant-mcp-rbac MCP server.
 
 The MCP transport is FastMCP's streamable-HTTP client, configured with an
-``Authorization: Bearer <token>`` header so the qdrant-rbac middleware sees
+``Authorization: Bearer <token>`` header so the qdrant-mcp-rbac middleware sees
 the same Keycloak access token the user logged in with.
 
 The LLM is configurable through litellm: any model id understood by litellm
@@ -26,7 +26,7 @@ from oidc import TokenBundle
 logger = logging.getLogger(__name__)
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are an assistant connected to the qdrant-rbac MCP server. "
+    "You are an assistant connected to the qdrant-mcp-rbac MCP server. "
     "The server enforces per-collection role-based access control: tools may "
     "refuse with 'forbidden' errors when the logged-in user lacks the required "
     "grant. Use the available tools to inspect collections, run vector searches, "

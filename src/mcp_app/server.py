@@ -55,7 +55,7 @@ def create_mcp(
     service_token_factory: partial[str],
 ) -> FastMCP:
     mcp: FastMCP = FastMCP(
-        name="qdrant-rbac",
+        name="qdrant-mcp-rbac",
         instructions=(
             "MCP server exposing a Qdrant vector database. Every tool requires "
             "an OIDC bearer token in the Authorization header. Per-collection "

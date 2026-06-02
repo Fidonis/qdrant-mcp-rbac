@@ -1,6 +1,6 @@
 # demo
 
-End-to-end demo material for `qdrant-rbac`. Everything in this folder
+End-to-end demo material for `qdrant-mcp-rbac`. Everything in this folder
 exists to exercise the server in `src/`; it is **not** part of the
 shipped product.
 
@@ -32,7 +32,7 @@ demo/
    uv run python vectorize.py
    ```
 
-3. **MCP server** — start `qdrant-rbac` (unchanged path).
+3. **MCP server** — start `qdrant-mcp-rbac` (unchanged path).
 
    ```bash
    cd src

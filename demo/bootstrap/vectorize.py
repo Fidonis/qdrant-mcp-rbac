@@ -290,7 +290,7 @@ def ingest_file(
 
     # Point IDs are scoped to the source file path so chunks from
     # different files within the same collection never collide.
-    namespace = uuid.uuid5(uuid.NAMESPACE_URL, f"qdrant-rbac/{relative_source}")
+    namespace = uuid.uuid5(uuid.NAMESPACE_URL, f"qdrant-mcp-rbac/{relative_source}")
 
     def _payload(idx: int, chunk: str) -> dict[str, object]:
         payload: dict[str, object] = {
