@@ -21,7 +21,7 @@ Jokes Company is a **global entertainment and merchandise brand** that creates, 
 
 - **Revenue** grew **23 %** YoY to **$14.8 bn**.  
 - **EBITDA** improved to **$3.2 bn**, reflecting operating leverage.  
-- **Net income** reached **$1.7 bn**, a **28 %** increase over FY 2026.  
+- **Net income** reached **$1.7 bn**, a **28 %** increase over FY 2024.  
 - **Free cash flow** stood at **$1.4 bn**, supporting a dividend increase and share repurchase program.
 
 The financial results underscore Jokes Company’s **robust business model**, diversified revenue streams, and **capacity to generate cash** for shareholders while continuing to invest in content creation and platform expansion.
@@ -30,7 +30,7 @@ The financial results underscore Jokes Company’s **robust business model**, di
 
 ## Key Financial Highlights  
 
-| Metric (FY 2025) | FY 2026 | YoY Change |
+| Metric (FY 2025) | FY 2024 | YoY Change |
 |------------------|---------|------------|
 | **Revenue** | $12.0 bn | **+23 %** |
 | **Gross Profit** | $7.6 bn | **+19 %** |
@@ -52,7 +52,7 @@ The financial results underscore Jokes Company’s **robust business model**, di
 *Statement of Comprehensive Income*  
 *For the year ended 31 December 2025*  
 
-|  | 2025 | 2026 |
+|  | 2025 | 2024 |
 |---|---:|---:|
 | **Revenue** | **$14,800,000,000** | $12,000,000,000 |
 | Cost of Goods Sold (COGS) | 7,200,000,000 | 5,800,000,000 |
@@ -71,7 +71,7 @@ The financial results underscore Jokes Company’s **robust business model**, di
 | **Net Income Attributable to Shareholders** | **$2,380,000,000** | $1,724,000,000 |
 | **Earnings Per Share (Diluted)** | **$4.20** | $3.30 |
 
-> **Note:** The income statement includes a non‑cash *stock‑based compensation* expense of $150 m (2025) and $120 m (2026) within SG&A.
+> **Note:** The income statement includes a non‑cash *stock‑based compensation* expense of $150 m (2025) and $120 m (2024) within SG&A.
 
 ---  
 
@@ -81,7 +81,7 @@ The financial results underscore Jokes Company’s **robust business model**, di
 *Statement of Financial Position*  
 *As of 31 December 2025*  
 
-|  | 2025 | 2026 |
+|  | 2025 | 2024 |
 |---|---:|---:|
 | **Assets** | | |
 | Current Assets | 6,800,000,000 | 5,900,000,000 |
@@ -112,7 +112,7 @@ The financial results underscore Jokes Company’s **robust business model**, di
 | **Total Equity** | **$12,500,000,000** | $13,800,000,000 |
 | **Total Liabilities & Equity** | **$22,400,000,000** | $22,400,000,000 |
 
-> **Interpretation:** The company’s **debt‑to‑equity ratio** improved to **0.79** (2025) from **0.62** (2026) due to a modest increase in long‑term borrowings to fund strategic acquisitions. Cash balances rose by **$500 m**, strengthening liquidity.
+> **Interpretation:** The company’s **debt‑to‑equity ratio** rose to **0.79** (2025) from **0.62** (2024) due to a modest increase in long‑term borrowings to fund strategic acquisitions. Cash balances rose by **$500 m**, strengthening liquidity.
 
 ---  
 
@@ -122,7 +122,7 @@ The financial results underscore Jokes Company’s **robust business model**, di
 *Statement of Cash Flows*  
 *For the year ended 31 December 2025*  
 
-|  | 2025 | 2026 |
+|  | 2025 | 2024 |
 |---|---:|---:|
 | **Operating Activities** | | |
 | Net Income | 2,380,000,000 | 1,724,000,000 |
@@ -148,13 +148,13 @@ The financial results underscore Jokes Company’s **robust business model**, di
 | Cash & cash equivalents at beginning of year | 1,370,000,000 | 1,030,000,000 |
 | **Cash & cash equivalents at end of year** | **$2,300,000,000** | $1,367,000,000 |
 
-> **Free Cash Flow** = Operating cash flow – Capital expenditures = **$2.28 bn** (2025) vs **$1.55 bn** (2026).
+> **Free Cash Flow** = Operating cash flow – Capital expenditures = **$2.28 bn** (2025) vs **$1.55 bn** (2024).
 
 ---  
 
 ## Financial Ratios & Analysis  
 
-| Ratio | 2025 | 2026 | Comment |
+| Ratio | 2025 | 2024 | Comment |
 |-------|------|------|---------|
 | **Liquidity** | | | |
 | Current Ratio | 2.34 | 2.36 | Slightly lower but still healthy |
@@ -185,7 +185,7 @@ The financial results underscore Jokes Company’s **robust business model**, di
 2. **Revenue Recognition** – Revenue is recognized when control of the promised service or product transfers to the customer, consistent with ASC 606.  
    - **Streaming subscriptions** (45 % of total revenue) are recognized ratably over the subscription period.  
    - **Merchandise sales** are recognized at the point of sale.  
-3. **Intangible Assets** – Consist mainly of **content libraries, trademarks, and goodwill** arising from the acquisition of “LaughLab Studios” (2026). Goodwill is tested for impairment annually; no impairment was recorded in 2025.  
+3. **Intangible Assets** – Consist mainly of **content libraries, trademarks, and goodwill** arising from the acquisition of “LaughLab Studios” (2024)26). Goodwill is tested for impairment annually; no impairment was recorded in 2025.  
 4. **Share-Based Compensation** – Stock‑based awards are measured at fair value on the grant date using the Black‑Scholes model. The expense is amortized over the vesting period (average 3 years).  
 5. **Acquisition Details** – In Q3 2025, Jokes Company purchased a **15 % non‑controlling interest** in **ComedyTech Ltd.** for **$250 m**, funded by a **pari‑passu term loan**. The investment is accounted for using the equity method; the investor’s share of net income was **$30 m** (recorded in “Other Income”).  
 6. **Income Taxes** – Effective tax rate of **30 %** reflects statutory rates, deferred tax assets, and valuation allowances.  
