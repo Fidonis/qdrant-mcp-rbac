@@ -8,8 +8,10 @@ from typing import Any
 from jose import jwt
 
 from .acl import AclResolver
+from .doc_filter import merge_doc_policies
 from .models import (
     CollectionAccess,
+    DocPolicy,
     OIDCClaims,
     QdrantToken,
     access_rank,
@@ -106,18 +108,35 @@ class QdrantJWTBuilder:
 
         If any matching grant has ``access == 'm'`` we short-circuit to a global
         manage token.
+
+        When the user holds multiple grants on the same collection, the
+        effective ``access`` is the most permissive level and the effective
+        ``doc_policy`` is the most-permissive merge of the individual policies
+        (see :func:`auth.doc_filter.merge_doc_policies`).
         """
-        per_collection: dict[str, CollectionAccess] = {}
+        per_collection: dict[str, list[CollectionAccess]] = {}
         for role in claims.all_roles:
             for grant in mapping.get(role, []):
                 if grant.access == "m":
                     return [], True
-                existing = per_collection.get(grant.collection)
-                if existing is None or access_rank(grant.access) > access_rank(
-                    existing.access
-                ):
-                    per_collection[grant.collection] = CollectionAccess(
-                        collection=grant.collection,
-                        access=grant.access,
-                    )
-        return list(per_collection.values()), False
+                per_collection.setdefault(grant.collection, []).append(grant)
+
+        rules: list[CollectionAccess] = []
+        for collection, grants in per_collection.items():
+            best = grants[0]
+            for grant in grants[1:]:
+                if access_rank(grant.access) > access_rank(best.access):
+                    best = grant
+            merged_policy = self._merge_policies(grants)
+            rules.append(
+                CollectionAccess(
+                    collection=collection,
+                    access=best.access,
+                    doc_policy=merged_policy,
+                )
+            )
+        return rules, False
+
+    @staticmethod
+    def _merge_policies(grants: list[CollectionAccess]) -> DocPolicy | None:
+        return merge_doc_policies([g.doc_policy for g in grants])

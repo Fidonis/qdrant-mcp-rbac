@@ -12,4 +12,4 @@ based on merged pull requests; this file mirrors the published releases.
 
 <!-- Updated automatically by release-drafter as PRs are merged to `main`. -->
 
-[Unreleased]: https://github.com/Fidonis/qdrant-rbac/compare/HEAD...main
+[Unreleased]: https://github.com/Fidonis/qdrant-mcp-rbac/compare/HEAD...main

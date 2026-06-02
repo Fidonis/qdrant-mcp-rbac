@@ -1,6 +1,6 @@
-# Contributing to qdrant-rbac
+# Contributing to qdrant-mcp-rbac
 
-Thanks for considering a contribution to qdrant-rbac! This document describes how to file issues, propose changes, and what is expected from contributors.
+Thanks for considering a contribution to qdrant-mcp-rbac! This document describes how to file issues, propose changes, and what is expected from contributors.
 
 ## Code of Conduct
 
@@ -8,9 +8,9 @@ Please follow common sense: be kind, assume good intent, and keep discussions fo
 
 ## Where to ask questions
 
-- **General questions, ideas, brainstorming** → [GitHub Discussions](https://github.com/Fidonis/qdrant-rbac/discussions)
-- **Bugs, feature requests, documentation issues** → [GitHub Issues](https://github.com/Fidonis/qdrant-rbac/issues), using the [issue templates](https://github.com/Fidonis/qdrant-rbac/issues/new/choose)
-- **Security vulnerabilities** → use [Private vulnerability reporting](https://github.com/Fidonis/qdrant-rbac/security/advisories/new) instead of a public issue
+- **General questions, ideas, brainstorming** → [GitHub Discussions](https://github.com/Fidonis/qdrant-mcp-rbac/discussions)
+- **Bugs, feature requests, documentation issues** → [GitHub Issues](https://github.com/Fidonis/qdrant-mcp-rbac/issues), using the [issue templates](https://github.com/Fidonis/qdrant-mcp-rbac/issues/new/choose)
+- **Security vulnerabilities** → use [Private vulnerability reporting](https://github.com/Fidonis/qdrant-mcp-rbac/security/advisories/new) instead of a public issue
 
 ## Reporting bugs and requesting features
 
@@ -110,7 +110,7 @@ The repository separates the production server (`src/`) from demo material (`dem
 
 ## License
 
-qdrant-rbac is licensed under the MIT License.
+qdrant-mcp-rbac is licensed under the MIT License.
 
 ---
 

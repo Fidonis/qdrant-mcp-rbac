@@ -14,9 +14,11 @@ from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.models import FieldCondition, Filter, MatchValue, PointStruct
 
 from auth.acl import ACL_SCROLL_PAGE_SIZE, AclResolver, acl_point_id, make_acl_point
+from auth.doc_filter import DENY_ALL, build_doc_filter, combine_with_user_filter
 from auth.models import (
     AclEntry,
     CollectionAccess,
+    DocPolicy,
     OIDCClaims,
     QdrantAccessLevel,
     QdrantToken,
@@ -96,13 +98,16 @@ def register_tools(
         if not vector:
             raise ToolError("vector must be a non-empty list of floats")
         token = _require_access(collection, "r")
+        effective_filter, deny_all = _apply_doc_policy(token, collection, query_filter)
+        if deny_all:
+            return {"results": [], "count": 0}
         async with qdrant_client(qdrant_url, token.token) as client:
             results = await qcoll.search(
                 client,
                 collection=collection,
                 vector=vector,
                 limit=limit,
-                query_filter=query_filter,
+                query_filter=effective_filter,
                 with_payload=with_payload,
             )
         return {"results": results, "count": len(results)}
@@ -144,13 +149,17 @@ def register_tools(
                 f"check that EMBEDDING_API_URL serves model '{model_name}'"
             )
 
+        effective_filter, deny_all = _apply_doc_policy(token, collection, query_filter)
+        if deny_all:
+            return {"results": [], "count": 0}
+
         async with qdrant_client(qdrant_url, token.token) as client:
             results = await qcoll.search(
                 client,
                 collection=collection,
                 vector=vector,
                 limit=limit,
-                query_filter=query_filter,
+                query_filter=effective_filter,
                 with_payload=with_payload,
             )
         return {"results": results, "count": len(results)}
@@ -245,21 +254,63 @@ def register_tools(
         role: str,
         collection: str,
         access: QdrantAccessLevel,
+        doc_policy: DocPolicy | None = None,
     ) -> dict[str, Any]:
         """Grant ``role`` the given ``access`` on ``collection``. Admin only.
 
         Idempotent — the (role, collection) pair maps to a deterministic
         point id, so subsequent calls update the existing grant in place.
         For global manage grants pass ``collection='*'`` and ``access='m'``.
+
+        Optional ``doc_policy`` restricts which documents the role can see in
+        ``collection``. The server translates it into a Qdrant payload filter
+        injected into every search.
+
+        ``doc_policy`` shape::
+
+            {
+              "default": "allow" | "deny",
+              "conditions": [
+                { "field": "<payload field>", "mode": "allow" | "deny", "values": ["<v1>", ...] }
+              ]
+            }
+
+        Common patterns:
+
+        * Allow only documents whose ``source`` field matches a filename::
+
+            {"default": "deny", "conditions": [
+              {"field": "source", "mode": "allow", "values": ["finance-2025.md"]}
+            ]}
+
+        * Hide documents tagged ``confidential`` from a role::
+
+            {"default": "allow", "conditions": [
+              {"field": "acl_tags", "mode": "deny", "values": ["confidential"]}
+            ]}
+
+        * Allow only documents tagged ``public``::
+
+            {"default": "deny", "conditions": [
+              {"field": "acl_tags", "mode": "allow", "values": ["public"]}
+            ]}
+
+        Omit ``doc_policy`` (or pass ``null``) to grant access to all documents.
         """
         token = _require_admin()
         try:
-            entry = AclEntry(role=role, collection=collection, access=access)
+            entry = AclEntry(
+                role=role,
+                collection=collection,
+                access=access,
+                doc_policy=doc_policy,
+            )
         except ValidationError as exc:
             logger.info("Rejected grant_access with invalid args: %s", exc.__class__.__name__)
             raise ToolError(
                 "invalid arguments: role and collection must be non-empty strings, "
-                "access must be one of 'r', 'rw', 'm'"
+                "access must be one of 'r', 'rw', 'm', and doc_policy (if given) "
+                "must match the documented schema"
             ) from None
         # Admin path bypasses the lazy bootstrap in AclResolver._load(), so on
         # a fresh install the ACL collection won't exist yet. Ensure it.
@@ -444,3 +495,25 @@ def _find_rule(
         if rule.collection == collection:
             return rule
     return None
+
+
+def _apply_doc_policy(
+    token: QdrantToken,
+    collection: str,
+    user_filter: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, bool]:
+    """Combine the caller-supplied filter with the doc policy for ``collection``.
+
+    Returns ``(effective_filter, deny_all)``. When ``deny_all`` is true the
+    caller MUST short-circuit and return an empty result set without
+    issuing the Qdrant query.
+    """
+    if token.has_global_manage:
+        return user_filter, False
+    rule = _find_rule(token.access_rules, collection)
+    if rule is None or rule.doc_policy is None:
+        return user_filter, False
+    doc_filter = build_doc_filter(rule.doc_policy)
+    if doc_filter is DENY_ALL:
+        return None, True
+    return combine_with_user_filter(doc_filter, user_filter), False

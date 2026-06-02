@@ -3,7 +3,7 @@
 Flow:
   1. Read settings from .env
   2. Get an OIDC access token from Keycloak
-  3. Connect to the qdrant-rbac MCP server with that token
+  3. Connect to the qdrant-mcp-rbac MCP server with that token
   4. Spin up an LLM agent (configurable via LLM_MODEL) and start a chat loop
 
 Run from inside ``demo/client/``:
@@ -23,7 +23,7 @@ from rich.prompt import Prompt
 
 from agent import LlmConfig, McpLlmAgent
 from config import Settings, get_settings
-from oidc import OIDCError, fetch_token
+from oidc import OIDCError, TokenBundle, fetch_token, refresh_access_token
 
 console = Console()
 
@@ -40,7 +40,7 @@ def _configure_logging(level: str) -> None:
         logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-async def _login(settings: Settings) -> str:
+async def _login(settings: Settings) -> TokenBundle:
     console.print(
         f"[cyan]Logging in to[/] {settings.oidc_issuer_url} "
         f"as [bold]{settings.oidc_username or settings.oidc_client_id}[/] "
@@ -59,10 +59,45 @@ async def _login(settings: Settings) -> str:
         f"[green]OK[/] - access token acquired "
         f"(expires in {bundle.expires_in}s)"
     )
-    return bundle.access_token
+    return bundle
 
 
-async def _run_chat(settings: Settings, token: str) -> None:
+def _make_token_refresher(settings: Settings, bundle: TokenBundle):
+    """Return an async callable that refreshes the access token.
+
+    Tries the refresh-token grant first; falls back to a full re-login
+    (password / client_credentials) if no refresh token is available.
+    """
+    async def _refresher() -> TokenBundle:
+        nonlocal bundle
+        if bundle.refresh_token:
+            try:
+                bundle = await refresh_access_token(
+                    issuer_url=settings.oidc_issuer_url,
+                    client_id=settings.oidc_client_id,
+                    client_secret=settings.oidc_client_secret,
+                    refresh_token=bundle.refresh_token,
+                )
+                return bundle
+            except OIDCError as exc:
+                logging.getLogger(__name__).warning(
+                    "Refresh-token grant failed (%s), falling back to re-login", exc
+                )
+        bundle = await fetch_token(
+            issuer_url=settings.oidc_issuer_url,
+            client_id=settings.oidc_client_id,
+            client_secret=settings.oidc_client_secret,
+            grant_type=settings.oidc_grant_type,
+            username=settings.oidc_username,
+            password=settings.oidc_password,
+            extra_scopes=settings.oidc_scopes,
+        )
+        return bundle
+
+    return _refresher
+
+
+async def _run_chat(settings: Settings, bundle: TokenBundle) -> None:
     llm_cfg = LlmConfig(
         model=settings.llm_model,
         api_base=settings.llm_api_base,
@@ -77,15 +112,16 @@ async def _run_chat(settings: Settings, token: str) -> None:
             f"[bold]MCP[/]: {settings.mcp_server_url}\n"
             f"[bold]LLM[/]: {settings.llm_model}"
             + (f"  [dim](api_base={settings.llm_api_base})[/]" if settings.llm_api_base else ""),
-            title="qdrant-rbac demo client",
+            title="qdrant-mcp-rbac demo client",
             border_style="cyan",
         )
     )
 
     async with McpLlmAgent(
         mcp_url=settings.mcp_server_url,
-        bearer_token=token,
+        token_bundle=bundle,
         llm=llm_cfg,
+        token_refresher=_make_token_refresher(settings, bundle),
     ) as agent:
         console.print(
             f"[dim]Connected. {len(agent.tool_names)} tools available: "
@@ -118,13 +154,13 @@ async def _async_main() -> int:
     _configure_logging(settings.log_level)
 
     try:
-        token = await _login(settings)
+        bundle = await _login(settings)
     except OIDCError as exc:
         console.print(f"[red]OIDC login failed:[/] {exc}")
         return 2
 
     try:
-        await _run_chat(settings, token)
+        await _run_chat(settings, bundle)
     except KeyboardInterrupt:
         console.print()
     except httpx.HTTPStatusError as exc:

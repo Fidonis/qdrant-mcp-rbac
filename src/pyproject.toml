@@ -1,5 +1,5 @@
 [project]
-name = "qdrant-rbac"
+name = "qdrant-mcp-rbac"
 version = "0.1.0"
 description = "FastMCP server exposing Qdrant with OIDC-based role-based access control"
 readme = "../README.md"
@@ -44,3 +44,9 @@ no_implicit_optional = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Tests live outside the uv project so they are not copied into the Docker
+# image (see docker/Dockerfile's `COPY src/ /app/`). The pyproject lives in
+# src/ and pytest's rootdir follows it, so the path is expressed relative to
+# src/. `pythonpath = ["."]` keeps `from auth import ...` resolvable.
+pythonpath = ["."]
+testpaths = ["../tests"]

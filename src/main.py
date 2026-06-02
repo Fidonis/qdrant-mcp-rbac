@@ -24,9 +24,9 @@ def _configure_logging(level: str) -> None:
 def main() -> None:
     settings = get_settings()
     _configure_logging(settings.log_level)
-    log = logging.getLogger("qdrant-rbac")
+    log = logging.getLogger("qdrant-mcp-rbac")
     log.info(
-        "Starting qdrant-rbac on %s:%d (mcp path=%s)",
+        "Starting qdrant-mcp-rbac on %s:%d (mcp path=%s)",
         settings.mcp_host,
         settings.mcp_port,
         settings.mcp_path,
