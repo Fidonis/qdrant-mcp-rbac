@@ -1,4 +1,7 @@
-# qdrant-rbac
+# qdrant-mcp-rbac
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+Maintained by **Fidonis** · See [TRADEMARK.md](TRADEMARK.md) for the trademark notice.
 
 A FastMCP server that exposes a Qdrant vector database over **streamable HTTP** with
 **OIDC-based authentication** (Keycloak-compatible) and **role-based access control**
@@ -8,15 +11,29 @@ Role grants are **stored as data inside a dedicated Qdrant collection**, not in
 configuration files — admins manage them at runtime via MCP tools.
 
 ```
-┌──────────┐   OIDC Bearer   ┌────────────────┐   Qdrant JWT    ┌──────────┐
-│ MCP host │ ──────────────▶ │ qdrant-rbac    │ ──────────────▶ │  Qdrant  │
-│ (client) │                 │  (FastMCP)     │                 │          │
-└──────────┘                 └────────────────┘                 │  ┌─────┐ │
-                                     │                          │  │_rbac│ │
-                                     ▼                          │  │_acl │ │
-                                 Keycloak                       │  └─────┘ │
-                                 (JWKS, OIDC discovery)         └──────────┘
+┌──────────┐   OIDC Bearer   ┌─────────────────┐   Qdrant JWT    ┌──────────┐
+│ MCP host │ ──────────────▶ │ qdrant-mcp-rbac │ ──────────────▶ │  Qdrant  │
+│ (client) │                 │   (FastMCP)     │                 │          │
+└──────────┘                 └─────────────────┘                 │  ┌─────┐ │
+                                     │                           │  │_rbac│ │
+                                     ▼                           │  │_acl │ │
+                                 Keycloak                        │  └─────┘ │
+                                 (JWKS, OIDC discovery)          └──────────┘
 ```
+
+## Quick start (Docker)
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e OIDC_ISSUER_URL=https://kc.example.com/realms/myrealm \
+  -e OIDC_AUDIENCE=mcp-server \
+  -e QDRANT_URL=http://qdrant:6333 \
+  -e QDRANT_JWT_SECRET=<same secret as Qdrant's api-key> \
+  ghcr.io/fidonis/qdrant-mcp-rbac:latest
+```
+
+`/mcp` is the streamable-HTTP endpoint, `/health` is unauthenticated.
+See the full [`docker/.env.example`](docker/.env.example) for every variable.
 
 ## How it works
 
@@ -242,7 +259,7 @@ Assign roles to test users.
 
 ## Qdrant JWT setup
 
-`qdrant-rbac` signs JWTs with `QDRANT_JWT_SECRET` (HS256). Qdrant must be
+`qdrant-mcp-rbac` signs JWTs with `QDRANT_JWT_SECRET` (HS256). Qdrant must be
 configured to accept JWTs and use the same secret as its API key:
 
 ```yaml
@@ -284,3 +301,19 @@ curl -H "Authorization: Bearer $TOKEN" \
      -H "Accept: text/event-stream" \
      http://localhost:8000/mcp
 ```
+
+## About Fidonis
+
+`qdrant-mcp-rbac` is built and maintained by **Fidonis**. We help companies run their own AI infrastructure end to end — open source, open standards, no vendor lock-in. This project covers one specific piece of the picture: enforce *who can read what* in your vector store without baking ACLs into config files.
+
+If you are building a similar self-hosted stack and want to talk shop, drop by at [fidonis.de](https://fidonis.de).
+
+## License
+
+`qdrant-mcp-rbac` is released under the [MIT license](LICENSE) — *Copyright (c) 2026 Fidonis GmbH (in Gründung) and contributors.*
+
+- See [`TRADEMARK.md`](TRADEMARK.md) for the trademark notice covering the name "Fidonis" and the project name `qdrant-mcp-rbac`.
+- See [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) for the licenses of the third-party Python dependencies bundled with this project.
+- See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the *Inbound = Outbound (MIT)* rule and the list of license categories that contributions may not introduce without prior approval.
+
+"Qdrant" is a registered trademark of Qdrant Solutions GmbH. Use of the name in this project is nominative — it describes the upstream component the server is built on and does not imply endorsement.
