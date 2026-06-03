@@ -3,6 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 Maintained by **Fidonis** · See [TRADEMARK.md](TRADEMARK.md) for the trademark notice.
 
+![Same MCP tool call, two identities, two different result sets — server-side enforcement.](.github/assets/demo.gif)
+
 A FastMCP server that exposes a Qdrant vector database over **streamable HTTP** with
 **OIDC-based authentication** (Keycloak-compatible) and **role-based access control**
 mapped onto Qdrant's native JWT access rules.
