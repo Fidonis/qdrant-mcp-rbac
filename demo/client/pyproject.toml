@@ -1,7 +1,7 @@
 [project]
 name = "client"
 version = "0.1.0"
-description = "OIDC-authenticated MCP client with a configurable LLM, talking to the qdrant-rbac MCP server"
+description = "OIDC-authenticated MCP client with a configurable LLM, talking to the qdrant-mcp-rbac MCP server"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

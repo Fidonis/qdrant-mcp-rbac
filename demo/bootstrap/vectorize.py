@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
+import yaml
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
@@ -53,6 +54,7 @@ DEFAULT_META_COLLECTION = "_collection_meta"
 DEFAULT_CHUNK_TOKENS = 500
 DEFAULT_CHUNK_OVERLAP = 50
 DEFAULT_BATCH = 32
+ACL_TAGS_FILENAME = "acl_tags.yml"
 
 # Must match src/qdrant/meta.py — bootstrap and the MCP server agree on the
 # point id derived from a collection name so meta upserts are idempotent.
@@ -103,11 +105,57 @@ def chunk_text(text: str, *, chunk_tokens: int, overlap: int) -> list[str]:
     return chunks
 
 
+def collection_name_for(stem: str) -> str:
+    """Derive the Qdrant collection name from a file stem.
+
+    Takes the prefix up to (but not including) the first hyphen so that
+    documents sharing a prefix land in the same collection:
+
+        finance-2025 → finance
+        finance-2026 → finance
+        it           → it
+        sales        → sales
+        sales-vp     → sales
+    """
+    return stem.split("-")[0]
+
+
 def discover_markdown_files(root: Path) -> list[Path]:
     if not root.exists():
         raise FileNotFoundError(f"Data directory not found: {root}")
     files = sorted(p for p in root.rglob("*.md") if p.is_file())
     return files
+
+
+def load_acl_tags(data_root: Path) -> dict[str, list[str]]:
+    """Load the optional ``acl_tags.yml`` sidecar.
+
+    The sidecar maps each Markdown source path (relative to ``data_root``,
+    POSIX-style) to a list of tag strings. Documents listed here get an
+    ``acl_tags`` payload field at ingest time; documents not listed remain
+    untagged and stay fully visible under default-allow doc policies.
+
+    The file is optional — when missing, an empty mapping is returned.
+    """
+    sidecar = data_root / ACL_TAGS_FILENAME
+    if not sidecar.is_file():
+        return {}
+    try:
+        raw = yaml.safe_load(sidecar.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise SystemExit(f"Invalid YAML in {sidecar}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise SystemExit(f"{sidecar} must contain a mapping at top level")
+    result: dict[str, list[str]] = {}
+    for source, tags in raw.items():
+        if not isinstance(source, str) or not source:
+            raise SystemExit(f"{sidecar}: keys must be non-empty strings, got {source!r}")
+        if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+            raise SystemExit(
+                f"{sidecar}: value for {source!r} must be a list of strings"
+            )
+        result[source] = list(tags)
+    return result
 
 
 def embed_batch(
@@ -199,11 +247,20 @@ def ingest_file(
     meta_collection: str,
     md_path: Path,
     data_root: Path,
+    collection: str,
     chunk_tokens: int,
     overlap: int,
+    recreate_collection: bool = True,
+    acl_tags: list[str] | None = None,
 ) -> IngestResult:
-    role = md_path.stem
-    collection = role
+    """Ingest one Markdown file into ``collection``.
+
+    When ``recreate_collection`` is ``True`` (default), the collection is
+    wiped and recreated before upserting — this is the right behaviour for
+    the first file in a collection group. Subsequent files in the same
+    collection must pass ``recreate_collection=False`` so their chunks are
+    appended rather than replacing the previous ones.
+    """
     relative_source = md_path.relative_to(data_root).as_posix()
 
     text = md_path.read_text(encoding="utf-8")
@@ -212,10 +269,11 @@ def ingest_file(
     if not chunks:
         logger.warning("No content to vectorize in %s — collection left empty", md_path)
         # Still probe the endpoint once to determine the vector dimension so
-        # the empty collection has the right schema.
+        # the collection (if new) gets the right schema.
         probe = embed_batch(http, cfg=embed_cfg, texts=["probe"])
         vector_size = len(probe[0])
-        ensure_collection(client, name=collection, vector_size=vector_size)
+        if recreate_collection:
+            ensure_collection(client, name=collection, vector_size=vector_size)
         upsert_meta_entry(
             client,
             meta_collection=meta_collection,
@@ -223,22 +281,32 @@ def ingest_file(
             embedding_model=embed_cfg.model,
             vector_dimension=vector_size,
         )
-        return IngestResult(role=role, collection=collection, source=md_path, chunk_count=0)
+        return IngestResult(role=collection, collection=collection, source=md_path, chunk_count=0)
 
     embeddings = embed_chunks(http, cfg=embed_cfg, chunks=chunks)
     vector_size = len(embeddings[0])
-    ensure_collection(client, name=collection, vector_size=vector_size)
+    if recreate_collection:
+        ensure_collection(client, name=collection, vector_size=vector_size)
 
-    namespace = uuid.uuid5(uuid.NAMESPACE_URL, f"qdrant-rbac/{role}")
+    # Point IDs are scoped to the source file path so chunks from
+    # different files within the same collection never collide.
+    namespace = uuid.uuid5(uuid.NAMESPACE_URL, f"qdrant-mcp-rbac/{relative_source}")
+
+    def _payload(idx: int, chunk: str) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "source": relative_source,
+            "chunk_index": idx,
+            "text": chunk,
+        }
+        if acl_tags:
+            payload["acl_tags"] = list(acl_tags)
+        return payload
+
     points = [
         PointStruct(
             id=str(uuid.uuid5(namespace, f"{relative_source}#{idx}")),
             vector=vector,
-            payload={
-                "source": relative_source,
-                "chunk_index": idx,
-                "text": chunk,
-            },
+            payload=_payload(idx, chunk),
         )
         for idx, (chunk, vector) in enumerate(zip(chunks, embeddings, strict=True))
     ]
@@ -253,7 +321,7 @@ def ingest_file(
     )
 
     return IngestResult(
-        role=role, collection=collection, source=md_path, chunk_count=len(points)
+        role=collection, collection=collection, source=md_path, chunk_count=len(points)
     )
 
 
@@ -303,9 +371,25 @@ def main() -> int:
     client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
     ensure_meta_collection(client, name=meta_collection)
 
+    acl_tags_map = load_acl_tags(data_dir)
+    if acl_tags_map:
+        logger.info(
+            "Loaded acl_tags for %d source file(s) from %s",
+            len(acl_tags_map),
+            data_dir / ACL_TAGS_FILENAME,
+        )
+
+    # Track which collections have been (re)created so subsequent files in the
+    # same group are appended rather than overwriting the previous chunks.
+    seen_collections: set[str] = set()
+
     results: list[IngestResult] = []
     with httpx.Client(timeout=httpx.Timeout(60.0, connect=5.0)) as http:
         for md_path in md_files:
+            relative_source = md_path.relative_to(data_dir).as_posix()
+            coll = collection_name_for(md_path.stem)
+            recreate = coll not in seen_collections
+            seen_collections.add(coll)
             result = ingest_file(
                 client=client,
                 http=http,
@@ -313,24 +397,28 @@ def main() -> int:
                 meta_collection=meta_collection,
                 md_path=md_path,
                 data_root=data_dir,
+                collection=coll,
                 chunk_tokens=chunk_tokens,
                 overlap=overlap,
+                recreate_collection=recreate,
+                acl_tags=acl_tags_map.get(relative_source),
             )
             results.append(result)
             logger.info(
-                "Ingested role=%s chunks=%d collection=%s (from %s)",
-                result.role,
-                result.chunk_count,
+                "Ingested collection=%s chunks=%d source=%s%s",
                 result.collection,
+                result.chunk_count,
                 result.source.relative_to(data_dir).as_posix(),
+                " (collection created)" if recreate else " (appended)",
             )
 
     print("\nSummary")
     print("-------")
-    print(f"{'Role':<24} {'Chunks':>8}  Collection")
+    print(f"{'Source file':<32} {'Chunks':>8}  Collection")
     for r in results:
-        print(f"{r.role:<24} {r.chunk_count:>8}  {r.collection}")
-    print(f"\nTotal collections created/refreshed: {len(results)}")
+        print(f"{r.source.name:<32} {r.chunk_count:>8}  {r.collection}")
+    print(f"\nTotal collections created/refreshed: {len(seen_collections)}")
+    print(f"Total source files ingested:          {len(results)}")
     print(f"Meta collection: {meta_collection}")
     return 0
 

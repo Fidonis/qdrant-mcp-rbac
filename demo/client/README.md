@@ -1,6 +1,6 @@
 # client
 
-Interactive demo client for the `qdrant-rbac` MCP server.
+Interactive demo client for the `qdrant-mcp-rbac` MCP server.
 
 ```
 ┌──────────────┐  OIDC password   ┌──────────┐
@@ -11,7 +11,7 @@ Interactive demo client for the `qdrant-rbac` MCP server.
        │  Bearer <access_token>
        ▼
 ┌──────────────┐    Qdrant JWT    ┌──────────┐
-│ qdrant-rbac  │ ───────────────▶ │  Qdrant  │
+│ qdrant-mcp-rbac  │ ───────────────▶ │  Qdrant  │
 └──────────────┘                  └──────────┘
        ▲
        │  tool_calls (litellm)
@@ -25,7 +25,7 @@ Interactive demo client for the `qdrant-rbac` MCP server.
 The client:
 
 1. Logs in to Keycloak (Resource-Owner Password or `client_credentials` grant).
-2. Opens a streamable-HTTP MCP session against `qdrant-rbac` and forwards the
+2. Opens a streamable-HTTP MCP session against `qdrant-mcp-rbac` and forwards the
    Keycloak access token as `Authorization: Bearer …` — the server's
    `OIDCAuthMiddleware` validates it and derives the per-user Qdrant JWT.
 3. Lists the MCP tools and gives them to a litellm-driven LLM as

@@ -87,6 +87,50 @@ def _build_form(
     return form
 
 
+async def refresh_access_token(
+    *,
+    issuer_url: str,
+    client_id: str,
+    client_secret: str = "",
+    refresh_token: str,
+) -> TokenBundle:
+    """Exchange a refresh token for a new access + refresh token pair."""
+    token_endpoint = await _discover_token_endpoint(issuer_url)
+    form: dict[str, str] = {
+        "grant_type": "refresh_token",
+        "client_id": client_id,
+        "refresh_token": refresh_token,
+    }
+    if client_secret:
+        form["client_secret"] = client_secret
+
+    async with httpx.AsyncClient(timeout=15.0) as http:
+        resp = await http.post(
+            token_endpoint,
+            data=form,
+            headers={"Accept": "application/json"},
+        )
+
+    if resp.status_code != 200:
+        raise OIDCError(
+            f"Token refresh to {token_endpoint} failed "
+            f"(HTTP {resp.status_code}): {resp.text}"
+        )
+
+    payload = resp.json()
+    access_token = payload.get("access_token")
+    if not isinstance(access_token, str) or not access_token:
+        raise OIDCError(f"Token refresh response missing access_token: {payload}")
+
+    expires_in = int(payload.get("expires_in", 300))
+    return TokenBundle(
+        access_token=access_token,
+        # Keycloak may rotate the refresh token; fall back to the old one if not.
+        refresh_token=payload.get("refresh_token") or refresh_token,
+        expires_at=time.time() + expires_in,
+    )
+
+
 async def fetch_token(
     *,
     issuer_url: str,

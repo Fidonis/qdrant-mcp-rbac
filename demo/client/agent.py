@@ -1,7 +1,7 @@
-"""LLM agent loop bridging litellm <-> the qdrant-rbac MCP server.
+"""LLM agent loop bridging litellm <-> the qdrant-mcp-rbac MCP server.
 
 The MCP transport is FastMCP's streamable-HTTP client, configured with an
-``Authorization: Bearer <token>`` header so the qdrant-rbac middleware sees
+``Authorization: Bearer <token>`` header so the qdrant-mcp-rbac middleware sees
 the same Keycloak access token the user logged in with.
 
 The LLM is configurable through litellm: any model id understood by litellm
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,10 +21,12 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from mcp.types import Tool as McpTool
 
+from oidc import TokenBundle
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are an assistant connected to the qdrant-rbac MCP server. "
+    "You are an assistant connected to the qdrant-mcp-rbac MCP server. "
     "The server enforces per-collection role-based access control: tools may "
     "refuse with 'forbidden' errors when the logged-in user lacks the required "
     "grant. Use the available tools to inspect collections, run vector searches, "
@@ -84,27 +87,40 @@ def _stringify_tool_result(result: Any) -> str:
 
 
 class McpLlmAgent:
-    """One agent instance per session — owns the MCP client and chat history."""
+    """One agent instance per session — owns the MCP client and chat history.
+
+    When a ``token_refresher`` callable is provided, the agent will call it
+    before any chat turn whose token is within 10 s of expiry, then reconnect
+    the underlying MCP transport transparently.  The chat history survives the
+    reconnect.
+    """
 
     def __init__(
         self,
         *,
         mcp_url: str,
-        bearer_token: str,
+        token_bundle: TokenBundle,
         llm: LlmConfig,
+        token_refresher: Callable[[], Awaitable[TokenBundle]] | None = None,
     ) -> None:
-        self._transport = StreamableHttpTransport(
-            url=mcp_url,
-            headers={"Authorization": f"Bearer {bearer_token}"},
-        )
+        self._mcp_url = mcp_url
+        self._bundle = token_bundle
+        self._token_refresher = token_refresher
         self._client: Client | None = None
         self._llm = llm
         self._tools_openai: list[dict[str, Any]] = []
         self._tool_names: set[str] = set()
         self._messages: list[dict[str, Any]] = []
 
+    def _make_client(self) -> Client:
+        transport = StreamableHttpTransport(
+            url=self._mcp_url,
+            headers={"Authorization": f"Bearer {self._bundle.access_token}"},
+        )
+        return Client(transport)
+
     async def __aenter__(self) -> McpLlmAgent:
-        self._client = Client(self._transport)
+        self._client = self._make_client()
         await self._client.__aenter__()
         await self._refresh_tools()
         system = self._llm.system_prompt.strip() or DEFAULT_SYSTEM_PROMPT
@@ -115,6 +131,24 @@ class McpLlmAgent:
         if self._client is not None:
             await self._client.__aexit__(exc_type, exc, tb)
             self._client = None
+
+    async def _ensure_fresh_token(self) -> None:
+        """Refresh the token and reconnect MCP if it is about to expire."""
+        if not self._bundle.is_expired or self._token_refresher is None:
+            return
+        logger.info("Access token expired — refreshing")
+        try:
+            self._bundle = await self._token_refresher()
+        except Exception as exc:
+            logger.warning("Token refresh failed: %s", exc)
+            return
+        # Reconnect with the new token; preserve chat history.
+        if self._client is not None:
+            await self._client.__aexit__(None, None, None)
+        self._client = self._make_client()
+        await self._client.__aenter__()
+        await self._refresh_tools()
+        logger.info("Reconnected to MCP with refreshed token")
 
     async def _refresh_tools(self) -> None:
         assert self._client is not None
@@ -132,6 +166,7 @@ class McpLlmAgent:
         if self._client is None:
             raise RuntimeError("McpLlmAgent must be entered via 'async with' first")
 
+        await self._ensure_fresh_token()
         self._messages.append({"role": "user", "content": user_message})
 
         for _iteration in range(self._llm.max_iterations):
