@@ -108,9 +108,32 @@ uv run python main.py
 
 The repository separates the production server (`src/`) from demo material (`demo/`). Each is its own uv project with its own `pyproject.toml` and `.venv` — there is no virtual environment in the repository root.
 
-## License
+## License of your contributions (Inbound = Outbound)
 
-qdrant-mcp-rbac is licensed under the MIT License.
+This project is published under the [MIT license](LICENSE). By submitting a pull request, comment with a code suggestion, or any other contribution to this repository, **you agree that your contribution is licensed under the same MIT license** that the project itself uses ("Inbound = Outbound"). No separate Contributor License Agreement (CLA) is required.
+
+You also confirm that:
+
+- You have the right to license the contribution under MIT — either because you wrote it yourself, or because the original author has explicitly licensed it under a compatible permissive license (MIT, BSD-2-Clause, BSD-3-Clause, Apache-2.0, ISC) and you preserve the original attribution.
+- Your contribution does not knowingly infringe a third party's copyright, patent or trademark.
+
+### Copyleft licenses are not accepted
+
+To keep the project freely redistributable under MIT, **contributions containing or directly depending on code under a copyleft license are not accepted** without prior written approval from the Fidonis management. This includes (non-exhaustive list):
+
+- GNU General Public License (GPL), any version
+- GNU Lesser General Public License (LGPL), any version
+- GNU Affero General Public License (AGPL), any version
+- Mozilla Public License (MPL) 2.0 when used in a way that would make the project a covered work
+- Server Side Public License (SSPL)
+- Open Software License (OSL)
+- European Union Public Licence (EUPL)
+
+If you believe an exception is justified (for example, an isolated build-time tool that does not ship with the binary), please open an issue first to discuss it before opening the PR. The CI license-check workflow will fail the PR if a copyleft dependency is added.
+
+## Trademarks
+
+"Fidonis" and "qdrant-mcp-rbac" are trademarks of Fidonis GmbH (in Gründung). See [TRADEMARK.md](TRADEMARK.md) for the rules on how you may and may not use them. The MIT license grants you broad rights to the code; the trademark notice governs the project's name and identity.
 
 ---
 
