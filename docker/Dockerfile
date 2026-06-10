@@ -42,6 +42,10 @@ COPY src/ /app/
 
 USER app
 
+# Ownership marker read by the MCP Registry at publish time; the value MUST
+# equal the `name` field in server.json or the publish is rejected.
+LABEL io.modelcontextprotocol.server.name="de.fidonis/qdrant-mcp-rbac"
+
 # streamable-http transport default port (see MCP_PORT in docker/.env.example).
 EXPOSE 8000
 

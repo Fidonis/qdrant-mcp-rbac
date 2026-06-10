@@ -1,0 +1,50 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "de.fidonis/qdrant-mcp-rbac",
+  "title": "Qdrant RBAC",
+  "description": "Role-based access to your Qdrant vector store, via MCP. OIDC in, scoped JWTs out.",
+  "version": "0.2.1",
+  "websiteUrl": "https://fidonis.de",
+  "repository": {
+    "url": "https://github.com/Fidonis/qdrant-mcp-rbac",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/fidonis/qdrant-mcp-rbac:0.2.1",
+      "version": "0.2.1",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://localhost:8000/mcp"
+      },
+      "environmentVariables": [
+        {
+          "name": "OIDC_ISSUER_URL",
+          "description": "OIDC issuer / realm URL, e.g. https://kc.example.com/realms/myrealm",
+          "format": "string",
+          "isRequired": true
+        },
+        {
+          "name": "OIDC_AUDIENCE",
+          "description": "Expected aud claim of incoming access tokens, e.g. mcp-server",
+          "format": "string",
+          "isRequired": true
+        },
+        {
+          "name": "QDRANT_URL",
+          "description": "Qdrant HTTP endpoint, e.g. http://qdrant:6333",
+          "format": "string",
+          "isRequired": true
+        },
+        {
+          "name": "QDRANT_JWT_SECRET",
+          "description": "HS256 signing secret; must equal Qdrant's service.api_key",
+          "format": "string",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
