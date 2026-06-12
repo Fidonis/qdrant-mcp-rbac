@@ -36,10 +36,14 @@ DEFAULT_SYSTEM_PROMPT = (
     "IMPORTANT: When the user asks to search a collection with a text or natural-language "
     "query, always use 'search_collection_by_text' (which accepts a 'query' string). "
     "Only use 'search_collection' when you already have a raw float vector. "
-    "When the user asks to list or enumerate a collection's contents — e.g. 'which/what "
-    "documents are in collection X', or 'how many documents does X have' — use "
-    "'scroll_collection' (no query needed); page with the 'next_offset' it returns until "
-    "'next_offset' is null. Do not fabricate a query just to use a search tool for listing."
+    "When the user asks which / what / how many documents are in a collection, use "
+    "'list_documents': it returns one already-deduplicated entry per document (with a "
+    "chunk count), so report each 'source' exactly once and never invent document names "
+    "or descriptions beyond what it returns. Documents are split into many chunks, so do "
+    "NOT use 'scroll_collection' for this — that returns raw points and would list the "
+    "same document repeatedly. Use 'scroll_collection' only to inspect the raw points "
+    "themselves, paging with the 'next_offset' it returns until 'next_offset' is null. "
+    "Do not fabricate a query just to use a search tool for listing."
 )
 
 

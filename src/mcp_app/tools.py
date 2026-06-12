@@ -199,6 +199,40 @@ def register_tools(
         return {"results": results, "next_offset": next_offset}
 
     @mcp.tool
+    async def list_documents(
+        collection: str,
+        limit: int = 1000,
+        query_filter: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """List the distinct documents in a collection with their chunk counts.
+
+        Documents are stored as multiple overlapping chunks (points); this tool
+        aggregates them by their ``source`` field server-side, so **each
+        document appears exactly once**. Use this to answer "which / what / how
+        many documents are in collection X?" — unlike ``scroll_collection``
+        (which returns individual chunks and must not be deduplicated by hand),
+        the result here is already deduplicated. Each entry is
+        ``{"source": <file>, "chunks": <number of points>}``. Requires read
+        access.
+        """
+        if limit <= 0 or limit > 10000:
+            raise ToolError("limit must be between 1 and 10000")
+        token = _require_access(collection, "r")
+        effective_filter, deny_all = _apply_doc_policy(token, collection, query_filter)
+        if deny_all:
+            return {"documents": [], "count": 0}
+        async with qdrant_client(qdrant_url, token.token) as client:
+            hits = await qcoll.facet(
+                client,
+                collection=collection,
+                key="source",
+                facet_filter=effective_filter,
+                limit=limit,
+            )
+        documents = [{"source": h["value"], "chunks": h["count"]} for h in hits]
+        return {"documents": documents, "count": len(documents)}
+
+    @mcp.tool
     async def upsert_points(
         collection: str,
         points: list[dict[str, Any]],

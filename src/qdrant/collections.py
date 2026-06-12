@@ -52,6 +52,25 @@ async def scroll(
     return results, next_offset
 
 
+async def facet(
+    client: AsyncQdrantClient,
+    *,
+    collection: str,
+    key: str,
+    facet_filter: dict[str, Any] | None = None,
+    limit: int = 1000,
+    exact: bool = True,
+) -> list[dict[str, Any]]:
+    response = await client.facet(
+        collection_name=collection,
+        key=key,
+        facet_filter=Filter(**facet_filter) if facet_filter else None,
+        limit=limit,
+        exact=exact,
+    )
+    return [{"value": h.value, "count": h.count} for h in response.hits]
+
+
 async def upsert(
     client: AsyncQdrantClient,
     *,
