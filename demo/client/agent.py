@@ -35,7 +35,11 @@ DEFAULT_SYSTEM_PROMPT = (
     "missing instead of retrying blindly. "
     "IMPORTANT: When the user asks to search a collection with a text or natural-language "
     "query, always use 'search_collection_by_text' (which accepts a 'query' string). "
-    "Only use 'search_collection' when you already have a raw float vector."
+    "Only use 'search_collection' when you already have a raw float vector. "
+    "When the user asks to list or enumerate a collection's contents — e.g. 'which/what "
+    "documents are in collection X', or 'how many documents does X have' — use "
+    "'scroll_collection' (no query needed); page with the 'next_offset' it returns until "
+    "'next_offset' is null. Do not fabricate a query just to use a search tool for listing."
 )
 
 

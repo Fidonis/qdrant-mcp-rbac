@@ -165,6 +165,40 @@ def register_tools(
         return {"results": results, "count": len(results)}
 
     @mcp.tool
+    async def scroll_collection(
+        collection: str,
+        limit: int = 50,
+        offset: str | int | None = None,
+        query_filter: dict[str, Any] | None = None,
+        with_payload: bool = True,
+    ) -> dict[str, Any]:
+        """List points in a collection without a query (full inventory).
+
+        Returns up to *limit* points from *collection*, optionally starting
+        after *offset*. Use this to enumerate documents — i.e. answer "what /
+        which / how many documents are in collection X?" questions where there
+        is no search query. Pass the returned ``next_offset`` back in to page
+        through the whole collection; a ``null`` ``next_offset`` means the last
+        page was reached. Requires read access.
+        """
+        if limit <= 0 or limit > 1000:
+            raise ToolError("limit must be between 1 and 1000")
+        token = _require_access(collection, "r")
+        effective_filter, deny_all = _apply_doc_policy(token, collection, query_filter)
+        if deny_all:
+            return {"results": [], "next_offset": None}
+        async with qdrant_client(qdrant_url, token.token) as client:
+            results, next_offset = await qcoll.scroll(
+                client,
+                collection=collection,
+                limit=limit,
+                offset=offset,
+                query_filter=effective_filter,
+                with_payload=with_payload,
+            )
+        return {"results": results, "next_offset": next_offset}
+
+    @mcp.tool
     async def upsert_points(
         collection: str,
         points: list[dict[str, Any]],

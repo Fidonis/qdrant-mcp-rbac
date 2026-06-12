@@ -29,6 +29,29 @@ async def search(
     ]
 
 
+async def scroll(
+    client: AsyncQdrantClient,
+    *,
+    collection: str,
+    limit: int = 50,
+    offset: str | int | None = None,
+    query_filter: dict[str, Any] | None = None,
+    with_payload: bool = True,
+) -> tuple[list[dict[str, Any]], str | int | None]:
+    points, next_offset = await client.scroll(
+        collection_name=collection,
+        limit=limit,
+        offset=offset,
+        scroll_filter=Filter(**query_filter) if query_filter else None,
+        with_payload=with_payload,
+        with_vectors=False,
+    )
+    results: list[dict[str, Any]] = [
+        {"id": p.id, "payload": p.payload} for p in points
+    ]
+    return results, next_offset
+
+
 async def upsert(
     client: AsyncQdrantClient,
     *,
