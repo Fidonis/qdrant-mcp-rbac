@@ -6,7 +6,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: qdrant-mcp-rbac-mcp:v0.2.0
+    image: qdrant-mcp-rbac-mcp:v0.3.0
     container_name: qdrant-mcp-rbac-mcp
     env_file:
       - path: .env

@@ -165,6 +165,89 @@ def register_tools(
         return {"results": results, "count": len(results)}
 
     @mcp.tool
+    async def scroll_collection(
+        collection: str,
+        limit: int = 50,
+        offset: str | int | None = None,
+        query_filter: dict[str, Any] | None = None,
+        with_payload: bool = True,
+    ) -> dict[str, Any]:
+        """List points in a collection without a query (full inventory).
+
+        Returns up to *limit* points from *collection*, optionally starting
+        after *offset*. Use this to enumerate documents — i.e. answer "what /
+        which / how many documents are in collection X?" questions where there
+        is no search query. Pass the returned ``next_offset`` back in to page
+        through the whole collection; a ``null`` ``next_offset`` means the last
+        page was reached. Requires read access.
+        """
+        if limit <= 0 or limit > 1000:
+            raise ToolError("limit must be between 1 and 1000")
+        token = _require_access(collection, "r")
+        effective_filter, deny_all = _apply_doc_policy(token, collection, query_filter)
+        if deny_all:
+            return {"results": [], "next_offset": None}
+        async with qdrant_client(qdrant_url, token.token) as client:
+            results, next_offset = await qcoll.scroll(
+                client,
+                collection=collection,
+                limit=limit,
+                offset=offset,
+                query_filter=effective_filter,
+                with_payload=with_payload,
+            )
+        return {"results": results, "next_offset": next_offset}
+
+    @mcp.tool
+    async def list_documents(
+        collection: str,
+        limit: int = 1000,
+        query_filter: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """List the distinct documents in a collection with their chunk counts.
+
+        Documents are stored as multiple overlapping chunks (points); this tool
+        aggregates them by their ``source`` field server-side, so **each
+        document appears exactly once**. Use this to answer "which / what / how
+        many documents are in collection X?" — unlike ``scroll_collection``
+        (which returns individual chunks and must not be deduplicated by hand),
+        the result here is already deduplicated. Each entry is
+        ``{"source": <file>, "chunks": <number of points>}``. Requires read
+        access.
+        """
+        if limit <= 0 or limit > 10000:
+            raise ToolError("limit must be between 1 and 10000")
+        token = _require_access(collection, "r")
+        effective_filter, deny_all = _apply_doc_policy(token, collection, query_filter)
+        if deny_all:
+            return {"documents": [], "count": 0}
+        async with qdrant_client(qdrant_url, token.token) as client:
+            try:
+                hits = await qcoll.facet(
+                    client,
+                    collection=collection,
+                    key="source",
+                    facet_filter=effective_filter,
+                    limit=limit,
+                )
+            except UnexpectedResponse as exc:
+                # Faceting needs a payload index on `source`. Create it once with
+                # the server's global-manage service token (the caller may be
+                # read-only) and retry; a non-index 400 resurfaces on the retry.
+                if exc.status_code != 400 or b"index" not in exc.content:
+                    raise
+                await _ensure_facet_index(collection, "source")
+                hits = await qcoll.facet(
+                    client,
+                    collection=collection,
+                    key="source",
+                    facet_filter=effective_filter,
+                    limit=limit,
+                )
+        documents = [{"source": h["value"], "chunks": h["count"]} for h in hits]
+        return {"documents": documents, "count": len(documents)}
+
+    @mcp.tool
     async def upsert_points(
         collection: str,
         points: list[dict[str, Any]],
@@ -379,6 +462,19 @@ def register_tools(
         return {"status": "invalidated"}
 
     # --------------------- helpers (scoped to closure) --------------------
+
+    async def _ensure_facet_index(collection: str, field: str) -> None:
+        """Ensure ``field`` is indexed so it can be faceted, via a service token.
+
+        Faceting requires a payload index. The calling user may only hold read
+        access, so the index is created with the server's global-manage service
+        token. Idempotent.
+        """
+        service = service_token_factory()
+        async with qdrant_client(qdrant_url, service) as client:
+            await qcoll.ensure_payload_index(
+                client, collection=collection, field=field
+            )
 
     async def _fetch_collection_meta(collection: str) -> dict[str, Any]:
         """Look up the meta entry for ``collection`` via a service token."""
