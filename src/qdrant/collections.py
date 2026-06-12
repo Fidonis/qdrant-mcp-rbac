@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import Filter, PointStruct
+from qdrant_client.models import Filter, PayloadSchemaType, PointStruct
 
 
 async def search(
@@ -69,6 +69,25 @@ async def facet(
         exact=exact,
     )
     return [{"value": h.value, "count": h.count} for h in response.hits]
+
+
+async def ensure_payload_index(
+    client: AsyncQdrantClient,
+    *,
+    collection: str,
+    field: str,
+    schema: PayloadSchemaType = PayloadSchemaType.KEYWORD,
+) -> None:
+    """Create a payload index on ``field`` so it can be faceted/filtered.
+
+    Idempotent: re-creating an existing index is a no-op on the Qdrant side.
+    """
+    await client.create_payload_index(
+        collection_name=collection,
+        field_name=field,
+        field_schema=schema,
+        wait=True,
+    )
 
 
 async def upsert(

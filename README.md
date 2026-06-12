@@ -371,7 +371,9 @@ last page). Use it to inspect the actual stored points.
 aggregates points by their `source` payload field server-side (Qdrant faceting)
 and returns one **deduplicated** entry per document with its chunk count —
 prefer it over `scroll_collection` for inventory questions, since a single
-document spans many chunks.
+document spans many chunks. Faceting requires a keyword payload index on
+`source`; the bootstrap creates it, and the server also creates it on first use
+if it is missing, so no manual step is needed.
 
 `upsert_points` and `delete_points` refuse to operate on system collections
 (`_rbac_acl`, `_collection_meta`) — use the admin tools or bootstrap instead.

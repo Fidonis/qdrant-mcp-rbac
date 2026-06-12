@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
-from qdrant_client.models import Filter
+from qdrant_client.models import Filter, PayloadSchemaType
 
 from qdrant import collections as qcoll
 
@@ -55,3 +55,15 @@ async def test_facet_wraps_filter() -> None:
 async def test_facet_empty() -> None:
     client = _client([])
     assert await qcoll.facet(client, collection="empty", key="source") == []
+
+
+async def test_ensure_payload_index_creates_keyword_index() -> None:
+    client = AsyncMock()
+    client.create_payload_index = AsyncMock()
+    await qcoll.ensure_payload_index(client, collection="finance", field="source")
+    client.create_payload_index.assert_awaited_once()
+    kwargs = client.create_payload_index.call_args.kwargs
+    assert kwargs["collection_name"] == "finance"
+    assert kwargs["field_name"] == "source"
+    assert kwargs["field_schema"] == PayloadSchemaType.KEYWORD
+    assert kwargs["wait"] is True

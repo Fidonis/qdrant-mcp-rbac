@@ -41,7 +41,12 @@ import httpx
 import yaml
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client.models import (
+    Distance,
+    PayloadSchemaType,
+    PointStruct,
+    VectorParams,
+)
 
 logger = logging.getLogger("vectorize")
 
@@ -192,15 +197,30 @@ def embed_chunks(
 
 
 def ensure_collection(
-    client: QdrantClient, *, name: str, vector_size: int
+    client: QdrantClient,
+    *,
+    name: str,
+    vector_size: int,
+    index_field: str | None = None,
 ) -> None:
-    """(Re)create ``name`` so the run is idempotent."""
+    """(Re)create ``name`` so the run is idempotent.
+
+    When ``index_field`` is given, a keyword payload index is created on it so
+    the MCP server can facet on that field (e.g. ``list_documents`` over
+    ``source``) without hitting "no appropriate index for faceting".
+    """
     if client.collection_exists(collection_name=name):
         client.delete_collection(collection_name=name)
     client.create_collection(
         collection_name=name,
         vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
     )
+    if index_field:
+        client.create_payload_index(
+            collection_name=name,
+            field_name=index_field,
+            field_schema=PayloadSchemaType.KEYWORD,
+        )
 
 
 def ensure_meta_collection(client: QdrantClient, *, name: str) -> None:
@@ -273,7 +293,9 @@ def ingest_file(
         probe = embed_batch(http, cfg=embed_cfg, texts=["probe"])
         vector_size = len(probe[0])
         if recreate_collection:
-            ensure_collection(client, name=collection, vector_size=vector_size)
+            ensure_collection(
+                client, name=collection, vector_size=vector_size, index_field="source"
+            )
         upsert_meta_entry(
             client,
             meta_collection=meta_collection,
@@ -286,7 +308,9 @@ def ingest_file(
     embeddings = embed_chunks(http, cfg=embed_cfg, chunks=chunks)
     vector_size = len(embeddings[0])
     if recreate_collection:
-        ensure_collection(client, name=collection, vector_size=vector_size)
+        ensure_collection(
+            client, name=collection, vector_size=vector_size, index_field="source"
+        )
 
     # Point IDs are scoped to the source file path so chunks from
     # different files within the same collection never collide.

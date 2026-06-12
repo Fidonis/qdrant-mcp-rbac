@@ -222,13 +222,28 @@ def register_tools(
         if deny_all:
             return {"documents": [], "count": 0}
         async with qdrant_client(qdrant_url, token.token) as client:
-            hits = await qcoll.facet(
-                client,
-                collection=collection,
-                key="source",
-                facet_filter=effective_filter,
-                limit=limit,
-            )
+            try:
+                hits = await qcoll.facet(
+                    client,
+                    collection=collection,
+                    key="source",
+                    facet_filter=effective_filter,
+                    limit=limit,
+                )
+            except UnexpectedResponse as exc:
+                # Faceting needs a payload index on `source`. Create it once with
+                # the server's global-manage service token (the caller may be
+                # read-only) and retry; a non-index 400 resurfaces on the retry.
+                if exc.status_code != 400 or b"index" not in exc.content:
+                    raise
+                await _ensure_facet_index(collection, "source")
+                hits = await qcoll.facet(
+                    client,
+                    collection=collection,
+                    key="source",
+                    facet_filter=effective_filter,
+                    limit=limit,
+                )
         documents = [{"source": h["value"], "chunks": h["count"]} for h in hits]
         return {"documents": documents, "count": len(documents)}
 
@@ -447,6 +462,19 @@ def register_tools(
         return {"status": "invalidated"}
 
     # --------------------- helpers (scoped to closure) --------------------
+
+    async def _ensure_facet_index(collection: str, field: str) -> None:
+        """Ensure ``field`` is indexed so it can be faceted, via a service token.
+
+        Faceting requires a payload index. The calling user may only hold read
+        access, so the index is created with the server's global-manage service
+        token. Idempotent.
+        """
+        service = service_token_factory()
+        async with qdrant_client(qdrant_url, service) as client:
+            await qcoll.ensure_payload_index(
+                client, collection=collection, field=field
+            )
 
     async def _fetch_collection_meta(collection: str) -> dict[str, Any]:
         """Look up the meta entry for ``collection`` via a service token."""
