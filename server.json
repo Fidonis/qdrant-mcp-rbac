@@ -3,7 +3,7 @@
   "name": "de.fidonis/qdrant-mcp-rbac",
   "title": "Qdrant RBAC",
   "description": "Role-based access to your Qdrant vector store, via MCP. OIDC in, scoped JWTs out.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "websiteUrl": "https://fidonis.de",
   "repository": {
     "url": "https://github.com/Fidonis/qdrant-mcp-rbac",
@@ -12,8 +12,8 @@
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/fidonis/qdrant-mcp-rbac:0.2.1",
-      "version": "0.2.1",
+      "identifier": "ghcr.io/fidonis/qdrant-mcp-rbac:0.3.0",
+      "version": "0.3.0",
       "transport": {
         "type": "streamable-http",
         "url": "http://localhost:8000/mcp"

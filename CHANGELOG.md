@@ -12,4 +12,20 @@ based on merged pull requests; this file mirrors the published releases.
 
 <!-- Updated automatically by release-drafter as PRs are merged to `main`. -->
 
+## [0.3.0] - 2026-06-16
+
+### Added
+- `scroll_collection` — pages through raw points with a `next_offset` cursor;
+  supports optional `query_filter` and `limit`
+- `list_documents` — deduplicated document inventory via Qdrant faceting on the
+  `source` payload field; returns one entry per document with chunk count
+- Bootstrap (`vectorize.py`) creates keyword payload index on `source` at
+  ingest time; server self-heals a missing index on first `list_documents` call
+
+### Fixed
+- Agent hallucination of document names (#10): system prompt now directs the
+  LLM to use `list_documents` for inventory questions and forbids fabricating
+  document names
+
 [Unreleased]: https://github.com/Fidonis/qdrant-mcp-rbac/compare/HEAD...main
+[0.3.0]: https://github.com/Fidonis/qdrant-mcp-rbac/compare/v0.2.0...v0.3.0
