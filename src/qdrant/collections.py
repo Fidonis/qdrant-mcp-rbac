@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import Filter, PointStruct
+from qdrant_client.models import Filter, PayloadSchemaType, PointStruct
 
 
 async def search(
@@ -27,6 +27,67 @@ async def search(
         {"id": p.id, "score": p.score, "payload": p.payload, "version": p.version}
         for p in response.points
     ]
+
+
+async def scroll(
+    client: AsyncQdrantClient,
+    *,
+    collection: str,
+    limit: int = 50,
+    offset: str | int | None = None,
+    query_filter: dict[str, Any] | None = None,
+    with_payload: bool = True,
+) -> tuple[list[dict[str, Any]], str | int | None]:
+    points, next_offset = await client.scroll(
+        collection_name=collection,
+        limit=limit,
+        offset=offset,
+        scroll_filter=Filter(**query_filter) if query_filter else None,
+        with_payload=with_payload,
+        with_vectors=False,
+    )
+    results: list[dict[str, Any]] = [
+        {"id": p.id, "payload": p.payload} for p in points
+    ]
+    return results, next_offset
+
+
+async def facet(
+    client: AsyncQdrantClient,
+    *,
+    collection: str,
+    key: str,
+    facet_filter: dict[str, Any] | None = None,
+    limit: int = 1000,
+    exact: bool = True,
+) -> list[dict[str, Any]]:
+    response = await client.facet(
+        collection_name=collection,
+        key=key,
+        facet_filter=Filter(**facet_filter) if facet_filter else None,
+        limit=limit,
+        exact=exact,
+    )
+    return [{"value": h.value, "count": h.count} for h in response.hits]
+
+
+async def ensure_payload_index(
+    client: AsyncQdrantClient,
+    *,
+    collection: str,
+    field: str,
+    schema: PayloadSchemaType = PayloadSchemaType.KEYWORD,
+) -> None:
+    """Create a payload index on ``field`` so it can be faceted/filtered.
+
+    Idempotent: re-creating an existing index is a no-op on the Qdrant side.
+    """
+    await client.create_payload_index(
+        collection_name=collection,
+        field_name=field,
+        field_schema=schema,
+        wait=True,
+    )
 
 
 async def upsert(

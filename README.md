@@ -76,9 +76,10 @@ Collection-level access decides whether a role can read a collection at all.
 A grant may additionally carry an optional `doc_policy` that restricts which
 **individual documents (points)** inside that collection the role can see. The
 server translates the policy into a Qdrant payload filter and injects it as a
-`must` clause on every read — `search_collection` and
-`search_collection_by_text`. Caller-supplied `query_filter` values are
-preserved; the doc filter is added alongside, so both apply together.
+`must` clause on every read — `search_collection`,
+`search_collection_by_text`, `scroll_collection`, and `list_documents`
+(faceting only over documents the role may see). Caller-supplied `query_filter`
+values are preserved; the doc filter is added alongside, so both apply together.
 
 Grants without `doc_policy` behave exactly as before — every document in the
 collection is visible.
@@ -353,12 +354,26 @@ at an external OIDC provider. Every variable is documented in
 | `get_collection_info` | `r` on the target collection |
 | `search_collection` | `r` on the target collection |
 | `search_collection_by_text` | `r` on the target collection |
+| `scroll_collection` | `r` on the target collection |
+| `list_documents` | `r` on the target collection |
 | `upsert_points` | `rw` on the target collection |
 | `delete_points` | `rw` on the target collection |
 
 `search_collection_by_text` accepts a natural-language query, embeds it via
 the configured OpenAI-compatible endpoint using the model recorded at
 bootstrap time, and runs the resulting vector search.
+
+`scroll_collection` lists raw **points** (chunks) without a query. It pages
+through the collection via the `next_offset` cursor it returns (`null` on the
+last page). Use it to inspect the actual stored points.
+
+`list_documents` answers "which / how many documents are in collection X?". It
+aggregates points by their `source` payload field server-side (Qdrant faceting)
+and returns one **deduplicated** entry per document with its chunk count —
+prefer it over `scroll_collection` for inventory questions, since a single
+document spans many chunks. Faceting requires a keyword payload index on
+`source`; the bootstrap creates it, and the server also creates it on first use
+if it is missing, so no manual step is needed.
 
 `upsert_points` and `delete_points` refuse to operate on system collections
 (`_rbac_acl`, `_collection_meta`) — use the admin tools or bootstrap instead.
