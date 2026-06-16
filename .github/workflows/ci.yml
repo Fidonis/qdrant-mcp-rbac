@@ -29,6 +29,20 @@ jobs:
       - name: Run ruff
         run: ruff check .
 
+  test:
+    name: Pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install uv
+        run: pip install --user uv
+      - name: Sync dependencies
+        working-directory: src
+        run: uv sync --frozen
+      - name: Run pytest
+        working-directory: src
+        run: uv run --frozen pytest -q
+
   pr-title:
     name: Conventional Commit PR title
     if: github.event_name == 'pull_request'
