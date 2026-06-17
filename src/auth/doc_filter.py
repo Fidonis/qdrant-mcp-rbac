@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from qdrant_client.models import FieldCondition, Filter, MatchAny
+from qdrant_client.models import Condition, FieldCondition, Filter, MatchAny
 
 from .models import DocCondition, DocPolicy
 
@@ -82,7 +82,7 @@ def build_doc_filter(policy: DocPolicy | None) -> DocFilter:
         return DENY_ALL
     if any(WILDCARD in c.values for c in allow_conds):
         return None
-    field_conds = [_field_cond(c) for c in allow_conds]
+    field_conds: list[Condition] = [_field_cond(c) for c in allow_conds]
     if len(field_conds) == 1:
         return Filter(must=field_conds)
     # Multiple allow conditions are unioned: a document passes if it matches
