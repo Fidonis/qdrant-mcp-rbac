@@ -1,10 +1,10 @@
 """Thin async wrappers around the Qdrant collection operations we expose."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import Filter, PayloadSchemaType, PointStruct
+from qdrant_client.models import ExtendedPointId, Filter, PayloadSchemaType, PointStruct
 
 
 async def search(
@@ -49,7 +49,9 @@ async def scroll(
     results: list[dict[str, Any]] = [
         {"id": p.id, "payload": p.payload} for p in points
     ]
-    return results, next_offset
+    # qdrant types the next offset as ExtendedPointId | None (incl. UUID); the
+    # tool surface only ever round-trips str/int ids, so narrow at this seam.
+    return results, cast("str | int | None", next_offset)
 
 
 async def facet(
@@ -108,7 +110,7 @@ async def delete(
 ) -> dict[str, Any]:
     result = await client.delete(
         collection_name=collection,
-        points_selector=point_ids,
+        points_selector=cast("list[ExtendedPointId]", point_ids),
         wait=True,
     )
     return {"status": str(result.status), "operation_id": result.operation_id}
