@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -91,7 +91,7 @@ class OIDCAuthMiddleware:
 def _get_header(scope: Scope, name: bytes) -> str | None:
     for raw_name, raw_value in scope.get("headers", []):
         if raw_name.lower() == name:
-            return raw_value.decode("latin-1")
+            return cast(str, raw_value.decode("latin-1"))
     return None
 
 

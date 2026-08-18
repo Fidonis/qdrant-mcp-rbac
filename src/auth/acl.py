@@ -15,6 +15,7 @@ import logging
 import time
 import uuid
 from collections.abc import Callable
+from typing import cast
 
 from pydantic import ValidationError
 from qdrant_client import AsyncQdrantClient
@@ -143,7 +144,11 @@ class AclResolver:
                         )
                         await self._bootstrap_collection(client)
                         return {}
-                    if exc.status_code >= 500 and attempt < _LOAD_MAX_ATTEMPTS - 1:
+                    if (
+                        exc.status_code is not None
+                        and exc.status_code >= 500
+                        and attempt < _LOAD_MAX_ATTEMPTS - 1
+                    ):
                         backoff = _LOAD_BACKOFF_BASE * (2 ** attempt)
                         logger.warning(
                             "ACL load attempt %d/%d failed (status %d); "
@@ -175,13 +180,14 @@ class AclResolver:
         result: list[AclEntry] = []
         next_offset: str | int | None = None
         while True:
-            points, next_offset = await client.scroll(
+            points, raw_offset = await client.scroll(
                 collection_name=self._acl_collection,
                 limit=ACL_SCROLL_PAGE_SIZE,
                 offset=next_offset,
                 with_payload=True,
                 with_vectors=False,
             )
+            next_offset = cast("str | int | None", raw_offset)
             for point in points:
                 payload = point.payload or {}
                 try:

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from fastmcp import FastMCP
@@ -313,7 +313,7 @@ def register_tools(
             try:
                 next_offset: str | int | None = None
                 while True:
-                    points, next_offset = await client.scroll(
+                    points, raw_offset = await client.scroll(
                         collection_name=acl_collection,
                         limit=ACL_SCROLL_PAGE_SIZE,
                         offset=next_offset,
@@ -321,6 +321,7 @@ def register_tools(
                         with_payload=True,
                         with_vectors=False,
                     )
+                    next_offset = cast("str | int | None", raw_offset)
                     for point in points:
                         if point.payload:
                             entries.append(dict(point.payload))
@@ -612,4 +613,5 @@ def _apply_doc_policy(
     doc_filter = build_doc_filter(rule.doc_policy)
     if doc_filter is DENY_ALL:
         return None, True
-    return combine_with_user_filter(doc_filter, user_filter), False
+    # DENY_ALL is excluded above; narrow away the sentinel for the call.
+    return combine_with_user_filter(cast("Filter | None", doc_filter), user_filter), False

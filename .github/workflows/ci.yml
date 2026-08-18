@@ -43,6 +43,20 @@ jobs:
         working-directory: src
         run: uv run --frozen pytest -q
 
+  typecheck:
+    name: Mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install uv
+        run: pip install --user uv
+      - name: Sync dependencies
+        working-directory: src
+        run: uv sync --frozen
+      - name: Run mypy
+        working-directory: src
+        run: uv run --frozen mypy .
+
   pr-title:
     name: Conventional Commit PR title
     if: github.event_name == 'pull_request'

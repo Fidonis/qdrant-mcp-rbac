@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from jose import jwt
@@ -109,7 +109,7 @@ class OIDCValidator:
 
     async def _issuer_for_validation(self) -> str:
         discovery = await self._get_discovery()
-        return discovery.get("issuer", self._issuer_url)
+        return cast(str, discovery.get("issuer", self._issuer_url))
 
     async def _get_discovery(self) -> dict[str, Any]:
         now = time.monotonic()
@@ -167,7 +167,7 @@ def _find_key(jwks: dict[str, Any], kid: str) -> dict[str, Any] | None:
         # signature verification keys. Skip encryption-only keys.
         if key.get("use") not in (None, "sig"):
             continue
-        return key
+        return cast("dict[str, Any]", key)
     return None
 
 
@@ -189,7 +189,7 @@ def _algorithm_for_key(key: dict[str, Any]) -> str:
         raise InvalidTokenError(f"Unsupported JWK key type: {kty!r}")
     if alg not in _ALLOWED_ALGS:
         raise InvalidTokenError(f"JWK algorithm not permitted: {alg!r}")
-    return alg
+    return cast(str, alg)
 
 
 def _extract_claims(payload: dict[str, Any]) -> OIDCClaims:
