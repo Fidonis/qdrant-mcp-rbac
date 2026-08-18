@@ -13,7 +13,6 @@
     {
       "registryType": "oci",
       "identifier": "ghcr.io/fidonis/qdrant-mcp-rbac:0.3.0",
-      "version": "0.3.0",
       "transport": {
         "type": "streamable-http",
         "url": "http://localhost:8000/mcp"
