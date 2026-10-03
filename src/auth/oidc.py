@@ -38,11 +38,14 @@ class OIDCValidator:
         audience: str,
         jwks_cache_ttl: int = 3600,
         http_timeout: float = 10.0,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._issuer_url = issuer_url.rstrip("/")
         self._audience = audience
         self._jwks_cache_ttl = jwks_cache_ttl
         self._http_timeout = http_timeout
+        # Seam for tests: lets them serve discovery and JWKS in-process.
+        self._transport = transport
 
         self._discovery: dict[str, Any] | None = None
         self._discovery_fetched_at: float = 0.0
@@ -92,6 +95,9 @@ class OIDCValidator:
 
         return _extract_claims(payload)
 
+    def _client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(timeout=self._http_timeout, transport=self._transport)
+
     async def _resolve_key(self, kid: str | None) -> dict[str, Any]:
         if kid is None:
             raise InvalidTokenError("Token header missing 'kid'")
@@ -125,7 +131,7 @@ class OIDCValidator:
             ):
                 return self._discovery
             url = f"{self._issuer_url}/.well-known/openid-configuration"
-            async with httpx.AsyncClient(timeout=self._http_timeout) as client:
+            async with self._client() as client:
                 response = await client.get(url)
                 response.raise_for_status()
                 self._discovery = response.json()
@@ -151,7 +157,7 @@ class OIDCValidator:
             jwks_uri = discovery.get("jwks_uri")
             if not jwks_uri:
                 raise InvalidTokenError("OIDC discovery missing 'jwks_uri'")
-            async with httpx.AsyncClient(timeout=self._http_timeout) as client:
+            async with self._client() as client:
                 response = await client.get(jwks_uri)
                 response.raise_for_status()
                 self._jwks = response.json()
