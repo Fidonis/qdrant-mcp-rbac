@@ -7,8 +7,10 @@ import time
 from typing import Any, cast
 
 import httpx
-from jose import jwt
-from jose.exceptions import ExpiredSignatureError, JWTError
+
+# Imported as a module, not by name: PyJWT exports an ``InvalidTokenError`` of
+# its own, which would shadow the one this module raises to its callers.
+import jwt
 
 from .models import OIDCClaims
 
@@ -38,11 +40,14 @@ class OIDCValidator:
         audience: str,
         jwks_cache_ttl: int = 3600,
         http_timeout: float = 10.0,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._issuer_url = issuer_url.rstrip("/")
         self._audience = audience
         self._jwks_cache_ttl = jwks_cache_ttl
         self._http_timeout = http_timeout
+        # Seam for tests: lets them serve discovery and JWKS in-process.
+        self._transport = transport
 
         self._discovery: dict[str, Any] | None = None
         self._discovery_fetched_at: float = 0.0
@@ -57,7 +62,7 @@ class OIDCValidator:
         """Validate signature, expiry, audience and issuer; return claims."""
         try:
             unverified_header = jwt.get_unverified_header(token)
-        except JWTError as exc:
+        except jwt.PyJWTError as exc:
             logger.info("Rejected token with malformed header")
             raise InvalidTokenError("Malformed token header") from exc
 
@@ -69,9 +74,12 @@ class OIDCValidator:
         issuer = await self._issuer_for_validation()
 
         try:
+            # Building the PyJWK inside the try keeps a malformed JWK (a
+            # PyJWKError) a plain rejection instead of an unhandled error. The
+            # algorithm is passed explicitly so PyJWT infers nothing itself.
             payload = jwt.decode(
                 token,
-                key,
+                jwt.PyJWK.from_dict(key, algorithm=alg),
                 algorithms=[alg],
                 audience=self._audience,
                 issuer=issuer,
@@ -80,17 +88,28 @@ class OIDCValidator:
                     "verify_aud": True,
                     "verify_iss": True,
                     "verify_exp": True,
+                    # verify_exp only checks an expiry that is present; a
+                    # token without one would otherwise be a standing key.
+                    "require": ["exp"],
+                    # `iat` is informational and exp/nbf bound the lifetime.
+                    # PyJWT would otherwise refuse a token whose `iat` is
+                    # ahead of this host's clock, turning clock skew against
+                    # the identity provider into spurious rejections.
+                    "verify_iat": False,
                 },
             )
-        except ExpiredSignatureError as exc:
+        except jwt.ExpiredSignatureError as exc:
             logger.info("Rejected expired token")
             raise InvalidTokenError("Token expired") from exc
-        except JWTError as exc:
+        except jwt.PyJWTError as exc:
             # Don't leak token contents into logs.
             logger.info("Token validation failed: %s", exc.__class__.__name__)
             raise InvalidTokenError("Token validation failed") from exc
 
         return _extract_claims(payload)
+
+    def _client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(timeout=self._http_timeout, transport=self._transport)
 
     async def _resolve_key(self, kid: str | None) -> dict[str, Any]:
         if kid is None:
@@ -125,7 +144,7 @@ class OIDCValidator:
             ):
                 return self._discovery
             url = f"{self._issuer_url}/.well-known/openid-configuration"
-            async with httpx.AsyncClient(timeout=self._http_timeout) as client:
+            async with self._client() as client:
                 response = await client.get(url)
                 response.raise_for_status()
                 self._discovery = response.json()
@@ -151,7 +170,7 @@ class OIDCValidator:
             jwks_uri = discovery.get("jwks_uri")
             if not jwks_uri:
                 raise InvalidTokenError("OIDC discovery missing 'jwks_uri'")
-            async with httpx.AsyncClient(timeout=self._http_timeout) as client:
+            async with self._client() as client:
                 response = await client.get(jwks_uri)
                 response.raise_for_status()
                 self._jwks = response.json()
