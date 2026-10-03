@@ -75,6 +75,18 @@ async def test_expired_token_rejected(issuer: FakeIssuer) -> None:
         await _validator(issuer).validate(issuer.token(expires_in=-60))
 
 
+async def test_token_without_expiry_rejected(issuer: FakeIssuer) -> None:
+    # An unexpiring token is a standing key; `verify_exp` alone would let it
+    # through, because it only checks an expiry that is actually present.
+    with pytest.raises(InvalidTokenError):
+        await _validator(issuer).validate(issuer.token(expires_in=None))
+
+
+async def test_token_without_audience_rejected(issuer: FakeIssuer) -> None:
+    with pytest.raises(InvalidTokenError):
+        await _validator(issuer).validate(issuer.token(omit=["aud"]))
+
+
 async def test_token_not_yet_valid_rejected(issuer: FakeIssuer) -> None:
     token = issuer.token(extra={"nbf": int(time.time()) + 300})
     with pytest.raises(InvalidTokenError):
@@ -191,6 +203,26 @@ async def test_jwk_advertising_a_symmetric_algorithm_is_refused(issuer: FakeIssu
     issuer.extra_jwks = [{"kty": "oct", "kid": "hmac-key", "alg": "HS256", "k": "c2VjcmV0"}]
     with pytest.raises(InvalidTokenError, match="not permitted"):
         await _validator(issuer).validate(issuer.token(kid="hmac-key"))
+
+
+@pytest.mark.parametrize(
+    "jwk",
+    [
+        {"kty": "RSA", "alg": "RS256", "n": "AAAA", "e": "AQAB"},
+        {"kty": "RSA", "alg": "RS256", "e": "AQAB"},
+        {"kty": "EC", "alg": "ES256", "crv": "P-384", "x": "AAAA", "y": "AAAA"},
+        {"kty": "EC", "alg": "ES256", "crv": "P-256", "x": "AAAA", "y": "AAAA"},
+    ],
+    ids=["tiny-modulus", "missing-modulus", "wrong-curve", "off-curve-point"],
+)
+async def test_unusable_key_material_is_a_rejection(
+    issuer: FakeIssuer, jwk: dict[str, str]
+) -> None:
+    # A JWK that cannot be turned into a key must end as InvalidTokenError,
+    # not as an unhandled error out of the key library.
+    issuer.extra_jwks = [{**jwk, "kid": "broken"}]
+    with pytest.raises(InvalidTokenError):
+        await _validator(issuer).validate(issuer.token(kid="broken"))
 
 
 async def test_jwk_of_unsupported_key_type_is_refused(issuer: FakeIssuer) -> None:
