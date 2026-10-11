@@ -41,7 +41,7 @@ See the full [`docker/.env.example`](docker/.env.example) for every variable.
 
 1. The MCP client sends a request with an OIDC access token (`Authorization: Bearer …`).
 2. The `OIDCAuthMiddleware` validates the token against the OIDC provider's JWKS
-   (signature, expiry, audience, issuer).
+   (signature, expiry, audience, issuer; see [Token validation](#token-validation)).
 3. The `JWTBuilder` derives a Qdrant JWT for the user:
    - If the user is in the **break-glass admin role** (`RBAC_ADMIN_ROLE`),
      a **global-manage** token is minted directly.
@@ -51,6 +51,25 @@ See the full [`docker/.env.example`](docker/.env.example) for every variable.
 4. The Qdrant JWT is attached to the request scope.
 5. Each MCP tool checks the user's effective access for the targeted collection
    and forwards the request to Qdrant using the derived JWT.
+
+### Token validation
+
+Tokens are validated with [PyJWT](https://pyjwt.readthedocs.io/) against the keys
+published by the issuer (`{OIDC_ISSUER_URL}/.well-known/openid-configuration`,
+then its `jwks_uri`):
+
+- **Signature algorithm** comes from the signing key (its `alg`, or `RS256` /
+  `ES256` for an RSA / EC key without one), never from the token header. Only
+  `RS256`, `RS384`, `RS512`, `ES256`, `ES384` and `ES512` are accepted; symmetric
+  (`HS*`) and `none` tokens are rejected.
+- **Required claims**: `exp`, `aud` (must contain `OIDC_AUDIENCE`), `iss` (must
+  equal the issuer in the discovery document) and a non-empty `sub`. A token
+  without `exp` or `aud` is rejected. `nbf` is enforced when present.
+- **`iat` is not checked**, so clock skew between this host and the identity
+  provider does not reject freshly issued tokens.
+- **Key rotation**: keys are cached for `OIDC_JWKS_CACHE_TTL` seconds. A token
+  with an unknown `kid` triggers exactly one JWKS refresh before it is rejected.
+- Roles are read from `realm_access.roles` and from every `resource_access.<client>.roles`.
 
 ### ACL collection schema
 
@@ -224,7 +243,7 @@ src/                       # uv project: the FastMCP server
   config.py                # Settings (pydantic-settings, .env)
   auth/
     models.py              # OIDCClaims, CollectionAccess, AclEntry, QdrantToken
-    oidc.py                # JWKS-based OIDC token validator
+    oidc.py                # JWKS-based OIDC token validator (PyJWT)
     acl.py                 # AclResolver: TTL-cached read of the ACL collection
     jwt_builder.py         # Builds Qdrant JWTs from claims + ACL mapping
   qdrant/
@@ -235,6 +254,14 @@ src/                       # uv project: the FastMCP server
     server.py              # FastMCP instance + Starlette app wiring
     tools.py               # MCP tools: data tools + ACL admin tools
     middleware.py          # ASGI auth middleware: OIDC → Qdrant JWT
+
+tests/                     # pytest suite, run from src/ (kept out of the Docker image)
+  fakes/oidc.py            # In-process OIDC issuer: RSA key, JWKS, token minting
+  test_doc_filter.py
+  test_facet.py
+  test_jwt_builder.py
+  test_oidc_validator.py
+  test_scroll.py
 
 demo/                      # everything for the end-to-end demo
   README.md                # Demo quickstart (order of operations)
@@ -251,8 +278,10 @@ demo/                      # everything for the end-to-end demo
     agent.py
     oidc.py
     config.py
-  data/                    # demo seed data (one Markdown file per role)
-    finance.md
+  data/                    # demo seed data (Markdown, collection = file stem up to the first "-")
+    finance-2025.md
+    finance-2026.md
+    finance-aquise.md
     it.md
     sales.md
 ```
@@ -293,9 +322,12 @@ Important variables:
 |---|---|
 | `OIDC_ISSUER_URL` | Keycloak realm URL, e.g. `https://kc.example.com/realms/myrealm` |
 | `OIDC_AUDIENCE` | Expected `aud` claim, e.g. `mcp-server` |
+| `OIDC_JWKS_CACHE_TTL` | Cache TTL of the OIDC discovery document and JWKS (default 3600 s) |
 | `QDRANT_URL` | Qdrant HTTP endpoint |
-| `QDRANT_JWT_SECRET` | Signing secret — **must equal Qdrant's `service.api_key`** |
+| `QDRANT_JWT_SECRET` | Signing secret — **must equal Qdrant's `service.api_key`**; use at least 32 bytes, PyJWT warns about shorter HS256 keys (e.g. `openssl rand -hex 32`) |
+| `QDRANT_JWT_TTL` | Lifetime of the Qdrant JWTs derived per request (default 3600 s, minimum 60) |
 | `MCP_HOST` / `MCP_PORT` / `MCP_PATH` | Listen address and path (default `0.0.0.0:8000/mcp`) |
+| `LOG_LEVEL` | Log level (default `INFO`) |
 | `EMBEDDING_API_URL` | OpenAI-compatible embeddings base URL (default `http://localhost:11434/v1`) |
 | `EMBEDDING_API_KEY` | Optional bearer token for the embeddings endpoint |
 | `EMBEDDING_META_COLLECTION` | Collection storing per-collection embedding metadata (default `_collection_meta`) |

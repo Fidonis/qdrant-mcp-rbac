@@ -21,7 +21,7 @@ qdrant-mcp-rbac/
 │   ├── config.py           # Pydantic Settings; all env-var configuration
 │   ├── auth/
 │   │   ├── models.py       # Pydantic models: OIDCClaims, AclEntry, DocPolicy, QdrantToken
-│   │   ├── oidc.py         # OIDCValidator: JWKS caching, token validation
+│   │   ├── oidc.py         # OIDCValidator: JWKS caching, token validation (PyJWT)
 │   │   ├── acl.py          # AclResolver: role→grant mapping with TTL cache
 │   │   ├── jwt_builder.py  # QdrantJWTBuilder: derive scoped Qdrant JWTs
 │   │   └── doc_filter.py   # Document-level policy filter building and merging
@@ -35,8 +35,11 @@ qdrant-mcp-rbac/
 │   │   └── meta.py         # Read/write helpers for _collection_meta
 │   └── pyproject.toml      # uv project config; ruff, mypy, pytest settings
 ├── tests/                  # pytest suite (sibling to src/)
+│   ├── fakes/oidc.py       # In-process OIDC issuer: RSA keypair, JWKS, token minting
 │   ├── test_doc_filter.py  # Unit tests for document-level filter building
 │   ├── test_facet.py       # Faceting (document inventory) tests
+│   ├── test_jwt_builder.py # Qdrant JWT minting from OIDC claims and ACL grants
+│   ├── test_oidc_validator.py # OIDC token validation against a fake JWKS
 │   └── test_scroll.py      # Scroll-with-filter tests
 ├── demo/
 │   ├── bootstrap/          # uv project: vectorise Markdown files into Qdrant
@@ -62,7 +65,7 @@ MCP client
   │  Authorization: Bearer <oidc_token>
   ▼
 OIDCAuthMiddleware  (mcp_app/middleware.py)
-  │  validates signature, expiry, aud, iss
+  │  validates signature, expiry, aud, iss (exp and aud are required)
   │  caches JWKS with configurable TTL
   ▼
 QdrantJWTBuilder.build()  (auth/jwt_builder.py)
@@ -111,6 +114,16 @@ When a user holds multiple roles, per-collection grants are merged:
 | `chore/<short>` | Maintenance |
 
 Never push directly to `main`; always open a pull request.
+
+Work for an upcoming release goes through a long-lived milestone branch
+`releases/<x>.<y>.<z>`: pull requests for that release target it and are
+squash-merged there. At release time the branch is merged into `main` with a
+merge commit, so the per-PR commits stay in `main`'s history, and the release
+`v<x>.<y>.<z>` is tagged on that merge commit. Milestone branches are kept after
+the release. Version numbers (`server.json`, the image tag in
+`docker/docker-compose.yml`, `src/pyproject.toml` with `src/uv.lock`) and the
+`CHANGELOG.md` entry are updated by hand in a pull request into the milestone
+branch before the merge to `main`.
 
 ### PR titles — Conventional Commits
 
@@ -166,6 +179,8 @@ uv run pytest -q
 |---|---|
 | `tests/test_doc_filter.py` | Document-level filter building and policy merging |
 | `tests/test_facet.py` | Faceting (document inventory via Qdrant facets) |
+| `tests/test_jwt_builder.py` | Qdrant JWT minting: admin role, ACL grants, multi-grant merging |
+| `tests/test_oidc_validator.py` | OIDC validation: signature, expiry, audience, issuer, key rotation, algorithm confusion |
 | `tests/test_scroll.py` | Point scrolling with payload filters |
 
 Integration tests that hit Qdrant require `QDRANT_URL` to point at a running instance.
@@ -206,13 +221,15 @@ All settings are loaded via Pydantic Settings in `config.py`. See `docker/.env.e
 | Variable | Purpose |
 |---|---|
 | `QDRANT_URL` | URL of the Qdrant instance |
-| `QDRANT_API_KEY` | Service-level API key (used for `_rbac_acl` operations) |
-| `QDRANT_JWT_SECRET` | Secret used to sign scoped Qdrant JWTs |
-| `OIDC_ISSUER` | OIDC issuer URL; discovery at `{issuer}/.well-known/openid-configuration` |
+| `QDRANT_JWT_SECRET` | Secret used to sign scoped Qdrant JWTs and the server's own service token; must equal Qdrant's `service.api_key`; use at least 32 bytes |
+| `QDRANT_JWT_TTL` | Lifetime of derived Qdrant JWTs in seconds (default: 3600) |
+| `OIDC_ISSUER_URL` | OIDC issuer URL; discovery at `{issuer}/.well-known/openid-configuration` |
 | `OIDC_AUDIENCE` | Expected `aud` claim value in incoming tokens |
+| `OIDC_JWKS_CACHE_TTL` | How long the discovery document and JWKS are cached, in seconds (default: 3600) |
 | `RBAC_ADMIN_ROLE` | Role that bypasses ACL entirely (default: `qdrant-admin`) |
-| `JWKS_CACHE_TTL_SECONDS` | How long JWKS keys are cached (default: 300) |
-| `ACL_CACHE_TTL_SECONDS` | How long the role → grant mapping is cached (default: 60) |
+| `RBAC_ACL_COLLECTION` | Collection holding the role → grant mapping (default: `_rbac_acl`) |
+| `RBAC_ACL_CACHE_TTL` | How long the role → grant mapping is cached, in seconds (default: 60) |
+| `RBAC_SERVICE_TOKEN_TTL` | Lifetime of the server's own service token, in seconds (default: 300) |
 
 ---
 
@@ -220,5 +237,6 @@ All settings are loaded via Pydantic Settings in `config.py`. See `docker/.env.e
 
 - **Never log** token values, derived Qdrant JWTs, or `QDRANT_JWT_SECRET`.
 - **Keep `_rbac_acl` server-side only.** The Qdrant service API key must never be exposed to MCP clients; only the derived, scoped JWTs reach callers.
-- **JWKS cache TTL** should be short enough to pick up provider key rotation within an acceptable window. The default of 300 s is a reasonable starting point; lower it if your OIDC provider rotates keys frequently.
+- **JWKS cache TTL** (`OIDC_JWKS_CACHE_TTL`) should be short enough to pick up provider key rotation within an acceptable window. An unknown `kid` triggers one immediate JWKS refresh, so a newly added key is picked up without waiting for the TTL; a key that the provider removes stays accepted until the cache expires, so lower the TTL if revoked keys must stop working sooner.
+- **Signing algorithm comes from the JWK, never from the token header.** Only RS/ES 256/384/512 are accepted; `exp`, `aud` and `iss` are required. Keep these controls in `auth/oidc.py` when changing the validator.
 - **Copyleft dependencies are not accepted.** The CI license-check workflow rejects GPL, LGPL, AGPL, EUPL, and similar licences. See `CONTRIBUTING.md` for the full list.
