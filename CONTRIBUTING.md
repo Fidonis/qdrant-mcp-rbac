@@ -26,7 +26,7 @@ Each form prefills the right labels and structure, so please use them rather tha
 ## Pull request workflow
 
 1. Open or comment on the issue you intend to work on, so duplicate effort can be avoided.
-2. Create a feature branch from `main`. Branch naming:
+2. Create a feature branch from `main` — or from the open `releases/<x.y.z>` branch if the change is meant for that upcoming release (ask in the issue if unsure). Branch naming:
    - `feat/<short-name>` — new features
    - `fix/<short-name>` — bug fixes
    - `docs/<short-name>` — documentation
@@ -35,9 +35,9 @@ Each form prefills the right labels and structure, so please use them rather tha
    - `ci/<short-name>` — CI/CD changes
    - `chore/<short-name>` — maintenance
 3. Make your change in small, reviewable commits.
-4. Open a pull request against `main`. The PR template is filled in automatically; please complete each section, especially **Linked issues**, **Type of change**, and **Test plan**.
-5. CI runs lint and PR-title checks. Address any failures. Once green, request a review.
-6. PRs are merged via **Squash & Merge**. The PR title becomes the squash commit message — make sure it follows Conventional Commits (see below).
+4. Open a pull request against the branch you started from (`main`, or the `releases/<x.y.z>` branch). The PR template is filled in automatically; please complete each section, especially **Linked issues**, **Type of change**, and **Test plan**.
+5. CI runs lint, type check, tests and the PR-title check. Address any failures. Once green, request a review.
+6. PRs are merged via **Squash & Merge**. The PR title becomes the squash commit message — make sure it follows Conventional Commits (see below). Maintainers merge a `releases/<x.y.z>` branch into `main` with a merge commit when the release is cut, so the individual PRs stay visible in the history.
 
 ## Commit and PR title convention
 
@@ -74,12 +74,12 @@ A CI check enforces this on PR titles.
 
 ## Code style
 
-Linters run on every push and pull request:
+These checks run on every pull request (and on every push to `main`):
 
 - **Python** — [`ruff`](https://docs.astral.sh/ruff/) for linting and import ordering
+- **Types** — [`mypy`](https://mypy-lang.org/) in strict mode, configured in `src/pyproject.toml`
+- **Tests** — [`pytest`](https://docs.pytest.org/) for the server (`tests/`)
 - **YAML** — [`yamllint`](https://yamllint.readthedocs.io/)
-
-Type checking with [`mypy`](https://mypy-lang.org/) (strict mode) is configured for the server in `src/pyproject.toml`; please run it locally before pushing.
 
 Run the checks locally before pushing:
 
@@ -91,6 +91,9 @@ yamllint .
 cd src
 uv run ruff check .
 uv run mypy .
+
+# Tests — from src/ (the suite lives in ../tests)
+uv run pytest -q
 ```
 
 Ruff configuration lives in each project's `pyproject.toml`; the yamllint configuration is in `.yamllint`.
