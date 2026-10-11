@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Any
 
-from jose import jwt
+import jwt
 
 from .acl import AclResolver
 from .doc_filter import merge_doc_policies

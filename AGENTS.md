@@ -35,8 +35,11 @@ qdrant-mcp-rbac/
 │   │   └── meta.py         # Read/write helpers for _collection_meta
 │   └── pyproject.toml      # uv project config; ruff, mypy, pytest settings
 ├── tests/                  # pytest suite (sibling to src/)
+│   ├── fakes/oidc.py       # In-process OIDC issuer: RSA keypair, JWKS, token minting
 │   ├── test_doc_filter.py  # Unit tests for document-level filter building
 │   ├── test_facet.py       # Faceting (document inventory) tests
+│   ├── test_jwt_builder.py # Qdrant JWT minting from OIDC claims and ACL grants
+│   ├── test_oidc_validator.py # OIDC token validation against a fake JWKS
 │   └── test_scroll.py      # Scroll-with-filter tests
 ├── demo/
 │   ├── bootstrap/          # uv project: vectorise Markdown files into Qdrant
@@ -166,6 +169,8 @@ uv run pytest -q
 |---|---|
 | `tests/test_doc_filter.py` | Document-level filter building and policy merging |
 | `tests/test_facet.py` | Faceting (document inventory via Qdrant facets) |
+| `tests/test_jwt_builder.py` | Qdrant JWT minting: admin role, ACL grants, multi-grant merging |
+| `tests/test_oidc_validator.py` | OIDC validation: signature, expiry, audience, issuer, key rotation, algorithm confusion |
 | `tests/test_scroll.py` | Point scrolling with payload filters |
 
 Integration tests that hit Qdrant require `QDRANT_URL` to point at a running instance.
