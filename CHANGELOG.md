@@ -12,6 +12,21 @@ based on merged pull requests; this file mirrors the published releases.
 
 <!-- Notable changes are collected here until the next release is cut. -->
 
+## [0.4.1] - 2026-11-07
+
+### Security
+- Authlib 1.9.1 replaces 1.7.2, which is affected by CVE-2026-96760 (signature
+  verification bypass, critical) (#78).
+- certifi 2026.10.19 replaces 2026.4.22, which bundles the compromised emSign
+  root CAs (GHSA-6q48-6c7w-9gw2) (#74).
+
+### Changed
+- Dependency updates: fastmcp 3.4.10 (from 3.2.4; it brings `fastmcp-slim` and
+  no longer needs `importlib_metadata` and `zipp`), mcp 1.30.0, joserfc 1.7.6,
+  opentelemetry-api 1.45.1, dnspython 2.9.0, and the GitHub Actions group
+  (#73, #75, #76, #77, #79, #80). The tools and the configuration are unchanged.
+- `THIRD_PARTY_LICENSES.md` is refreshed for these versions.
+
 ## [0.4.0] - 2026-10-11
 
 ### Changed
