@@ -132,7 +132,7 @@ To keep the project freely redistributable under MIT, **contributions containing
 - Open Software License (OSL)
 - European Union Public Licence (EUPL)
 
-If you believe an exception is justified (for example, an isolated build-time tool that does not ship with the binary), please open an issue first to discuss it before opening the PR. The CI license-check workflow will fail the PR if a copyleft dependency is added.
+If you believe an exception is justified (for example, an isolated build-time tool that does not ship with the binary), please open an issue first to discuss it before opening the PR. The CI license-check workflow fails the PR if a copyleft **runtime** dependency is added (development-only tooling is outside the gate, and a multi-licensed package passes when at least one of its licenses is permissive).
 
 ## Trademarks
 
