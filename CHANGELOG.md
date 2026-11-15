@@ -12,6 +12,23 @@ based on merged pull requests; this file mirrors the published releases.
 
 <!-- Notable changes are collected here until the next release is cut. -->
 
+## [0.4.2] - 2026-11-15
+
+### Changed
+- Dependency updates: opentelemetry-api 1.45.2, dnspython 2.9.2, and the
+  GitHub Actions group (cosign-installer 4.1.3, docker/login-action 4.8.0)
+  (#82, #84, #85). The tools and the configuration are unchanged.
+- `THIRD_PARTY_LICENSES.md` lists only the runtime dependencies of the server,
+  as its header states. It had also listed the development tools (pytest, ruff,
+  mypy and their dependencies).
+
+### Fixed
+- The license check scans only the runtime dependencies. It had also scanned
+  the development tools, because `uv run` installed them again after the sync.
+  It now recognizes the long license names that Python packages declare (for
+  example "GNU General Public License v3 (GPLv3)"), and a package that offers
+  several licenses passes when at least one of them is permissive (#83).
+
 ## [0.4.1] - 2026-11-07
 
 ### Security
@@ -70,6 +87,8 @@ based on merged pull requests; this file mirrors the published releases.
   LLM to use `list_documents` for inventory questions and forbids fabricating
   document names
 
-[Unreleased]: https://github.com/Fidonis/qdrant-mcp-rbac/compare/v0.4.0...main
+[Unreleased]: https://github.com/Fidonis/qdrant-mcp-rbac/compare/v0.4.2...main
+[0.4.2]: https://github.com/Fidonis/qdrant-mcp-rbac/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/Fidonis/qdrant-mcp-rbac/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Fidonis/qdrant-mcp-rbac/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Fidonis/qdrant-mcp-rbac/compare/v0.2.0...v0.3.0
