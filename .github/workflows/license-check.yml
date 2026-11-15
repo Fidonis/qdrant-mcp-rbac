@@ -36,7 +36,7 @@ jobs:
 
       - name: Install src dependencies into a venv
         working-directory: src
-        run: uv sync --frozen
+        run: uv sync --frozen --no-dev
 
       - name: Install pip-licenses
         working-directory: src
@@ -49,23 +49,31 @@ jobs:
           # Categories we refuse: GPL / LGPL / AGPL / OSL / EUPL / SSPL.
           # MPL alone is allowed; if it ever needs to be tightened, add it
           # to the regex and update CONTRIBUTING.md accordingly.
-          uv run pip-licenses --format=json > /tmp/licenses.json
+          uv run --no-sync pip-licenses --format=json > /tmp/licenses.json
           python - <<'PY'
           import json, re, sys
           with open("/tmp/licenses.json") as f:
               entries = json.load(f)
+          # Matches both SPDX-ish ids (GPL-3.0, LGPLv2.1) and the long
+          # classifier spellings pip-licenses emits, e.g.
+          # "GNU General Public License v3 (GPLv3)".
           banned = re.compile(
               r"^(?:GNU )?"
-              r"(GPL|LGPL|AGPL|Affero|OSL|Open Software License|EUPL|"
+              r"(?:(?:Library or )?(?:Lesser |Affero )?General Public License"
+              r"|GPL|LGPL|AGPL|Affero|OSL|Open Software License|EUPL|"
               r"European Union Public Licen[cs]e|SSPL|Server Side Public License)"
-              r"(?:[ -].*)?$",
+              r"(?:[ \-v(].*)?$",
               re.IGNORECASE,
           )
-          offenders = [
-              e for e in entries
-              if any(banned.match(part.strip())
-                     for part in str(e.get("License", "")).split(";"))
-          ]
+          # ";"-separated license strings are an OR choice in Python
+          # classifiers (e.g. docutils: "BSD License; GNU General Public
+          # License (GPL); Public Domain"): the package only offends when
+          # EVERY part is copyleft.
+          offenders = []
+          for e in entries:
+              parts = [p.strip() for p in str(e.get("License", "")).split(";") if p.strip()]
+              if parts and all(banned.match(p) for p in parts):
+                  offenders.append(e)
           if offenders:
               print("Copyleft dependencies detected — failing the build:", file=sys.stderr)
               for e in offenders:
@@ -95,7 +103,7 @@ jobs:
 
       - name: Install src dependencies into a venv
         working-directory: src
-        run: uv sync --frozen
+        run: uv sync --frozen --no-dev
 
       - name: Install pip-licenses
         working-directory: src
@@ -119,7 +127,7 @@ jobs:
           clients are excluded.
 
           HEADER
-            uv run pip-licenses \
+            uv run --no-sync pip-licenses \
                 --format=markdown \
                 --with-urls --with-authors
           } > ../THIRD_PARTY_LICENSES.md.new
